@@ -1,0 +1,116 @@
+{
+  "name": "Aevom Development Environment",
+  // Context is the repo root so the Dockerfile can COPY backend/requirements.txt
+  // and requirements-dev.txt. See .dockerignore for what stays out of the context.
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": "..",
+    "options": ["--network=host"]
+  },
+  "initializeCommand": "bash -c 'if [ -n \"$HOME\" ]; then mkdir -p \"$HOME/.ssh\" \"$HOME/.kube\" \"$HOME/.rancher\" \"$HOME/.claude\" \"$HOME/.codex\"; fi; if [ -z \"$NEMO_GYM_PATH\" ]; then mkdir -p /tmp/empty-nemo-gym-placeholder; fi; if [ -z \"$AEVOM_DATA_GEN_PATH\" ]; then mkdir -p /tmp/empty-aevom-data-gen-placeholder; fi; if [ -z \"$NEMO_RL_PATH\" ]; then mkdir -p /tmp/empty-nemo-rl-placeholder; fi; if [ -z \"$AEVOM_EVAL_DASHBOARD_PATH\" ]; then mkdir -p /tmp/empty-eval-dashboard-placeholder; fi; if [ -z \"$AEVOM_SMDD_BENCH_PATH\" ]; then mkdir -p /tmp/empty-smdd-bench-placeholder; fi; if [ -z \"$SCRATCH\" ]; then mkdir -p /tmp/empty-data-placeholder; fi'",
+  "workspaceFolder": "/workspaces/aevom",
+  "hostRequirements": { "gpu": "optional" },
+  // GPU is opt-in. To enable, ensure the host has nvidia driver +
+  // nvidia-container-toolkit installed, then prepend "--gpus", "all" below.
+  "runArgs": ["--network", "host", "--privileged"],
+  "mounts": [
+    "source=${localEnv:HOME}/.ssh,target=/home/ubuntu/.ssh,type=bind,readonly",
+    "source=${localEnv:HOME}/.kube,target=/home/ubuntu/.kube,type=bind,readonly",
+    "source=${localEnv:HOME}/.rancher,target=/home/ubuntu/.rancher,type=bind",
+    "source=${localEnv:NEMO_GYM_PATH:/tmp/empty-nemo-gym-placeholder},target=/workspaces/nemo-gym,type=bind,readonly",
+    "source=${localEnv:AEVOM_DATA_GEN_PATH:/tmp/empty-aevom-data-gen-placeholder},target=/workspaces/aevom-data-gen,type=bind",
+    "source=${localEnv:NEMO_RL_PATH:/tmp/empty-nemo-rl-placeholder},target=/workspaces/nemo-rl,type=bind",
+    "source=${localEnv:AEVOM_EVAL_DASHBOARD_PATH:/tmp/empty-eval-dashboard-placeholder},target=/workspaces/aevom-eval-dashboard,type=bind",
+    "source=${localEnv:AEVOM_SMDD_BENCH_PATH:/tmp/empty-smdd-bench-placeholder},target=/workspaces/aevom-smdd-bench,type=bind",
+    "source=${localEnv:SCRATCH:/tmp/empty-data-placeholder},target=/data,type=bind,readonly",
+    "source=${localEnv:HOME}/.claude,target=/home/ubuntu/.claude,type=bind,consistency=cached",
+    "source=${localEnv:HOME}/.codex,target=/home/ubuntu/.codex,type=bind,consistency=cached",
+    // Package caches, on named volumes so a rebuild does not re-download them.
+    // postCreateCommand's `uv sync` refills ~7.7GB of wheels and ~108MB of
+    // uv-managed interpreters otherwise. The matching directories are created
+    // with ubuntu ownership in the Dockerfile -- see the comment there.
+    "source=aevom-uv-cache,target=/home/ubuntu/.cache/uv,type=volume",
+    "source=aevom-uv-python,target=/home/ubuntu/.local/share/uv/python,type=volume",
+    "source=aevom-pip-cache,target=/home/ubuntu/.cache/pip,type=volume"
+  ],
+  "features": {
+    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {
+      "version": "latest",
+      "enableNonRootDocker": "true",
+      "moby": "true",
+      "installDockerBuildx": true,
+      "dockerDashComposeVersion": "v2"
+    },
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "20"
+    },
+    "ghcr.io/devcontainers/features/kubectl-helm-minikube:1": {
+      "kubectl": "1.30.2",
+      "helm": "none",
+      "minikube": "none"
+    }
+  },
+  "remoteEnv": {
+    "HOST_PROJECT_PATH": "${localWorkspaceFolder}",
+    "NEMO_GYM_PATH": "${localEnv:NEMO_GYM_PATH}",
+    "AEVOM_DATA_GEN_PATH": "${localEnv:AEVOM_DATA_GEN_PATH}",
+    "NEMO_RL_PATH": "${localEnv:NEMO_RL_PATH}",
+    "AEVOM_EVAL_DASHBOARD_PATH": "${localEnv:AEVOM_EVAL_DASHBOARD_PATH}",
+    "AEVOM_SMDD_BENCH_PATH": "${localEnv:AEVOM_SMDD_BENCH_PATH}",
+    "SCRATCH": "${localEnv:SCRATCH}"
+  },
+  // Claude Code keeps its account/onboarding state in $CLAUDE_CONFIG_DIR/.claude.json.
+  // Unset, that resolves to ~/.claude.json — which is in the container's writable layer,
+  // not the ~/.claude bind mount, so every container recreate loses the login. Pinning the
+  // config dir puts .claude.json next to .credentials.json inside the mount.
+  // These live in containerEnv, not remoteEnv, so plain `docker exec` shells see them too.
+  "containerEnv": {
+    "CLAUDE_CONFIG_DIR": "/home/ubuntu/.claude",
+    "CLAUDE_CODE_TMPDIR": "/home/ubuntu/.claude-tmp",
+    // Pinned to the paths the cache volumes are mounted on. These are already
+    // uv's defaults, but the defaults follow XDG_CACHE_HOME -- anything setting
+    // that would move the cache off the volume and silently stop it working.
+    "UV_CACHE_DIR": "/home/ubuntu/.cache/uv",
+    "UV_PYTHON_INSTALL_DIR": "/home/ubuntu/.local/share/uv/python",
+    "PIP_CACHE_DIR": "/home/ubuntu/.cache/pip"
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "ms-python.debugpy",
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "bradlc.vscode-tailwindcss",
+        "ms-azuretools.vscode-docker",
+        "charliermarsh.ruff"
+      ],
+      "settings": {
+        "python.defaultInterpreterPath": "/usr/bin/python3",
+        "terminal.integrated.defaultProfile.linux": "bash",
+        "editor.formatOnSave": true,
+        "editor.defaultFormatter": "esbenp.prettier-vscode",
+        "[python]": {
+          "editor.defaultFormatter": "charliermarsh.ruff"
+        }
+      }
+    }
+  },
+  "portsAttributes": {
+    "5180": {
+      "label": "Aevom App",
+      "onAutoForward": "notify"
+    },
+    "6080": {
+      "label": "Phoenix Tracing",
+      "onAutoForward": "notify"
+    },
+    "8080": {
+      "label": "FastAPI Backend (dev)",
+      "onAutoForward": "notify"
+    }
+  },
+  "postCreateCommand": "mkdir -p \"$HOME/.claude-tmp\" && { sudo chown ubuntu:ubuntu \"$HOME/.cache/uv\" \"$HOME/.cache/pip\" \"$HOME/.local/share/uv/python\" || true; } && echo '=== Verifying tools ===' && kubectl version --client && rancher --version && npm --version && node --version && python3 --version && echo '=== All tools ready ===' && if [ -d /workspaces/aevom/.git ]; then cd /workspaces/aevom && git submodule update --init --recursive && echo '=== submodules populated ==='; fi && if [ -d /workspaces/nemo-rl/.git ]; then cd /workspaces/nemo-rl && uv sync --group dev && uv run pre-commit install && echo '=== nemo-rl dev environment ready ==='; fi && npm install -g @anthropic-ai/claude-code @openai/codex",
+  "remoteUser": "ubuntu"
+}

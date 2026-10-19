@@ -1,0 +1,13 @@
+{
+  "tool_name": "search_pubchem",
+  "args_hash": "2c7a91a8af55cdfe",
+  "content_type": "text",
+  "data": "{\n  \"cid\": 3672,\n  \"name\": \"2-[4-(2-methylpropyl)phenyl]propanoic acid\",\n  \"isomeric_smiles\": \"CC(C)CC1=CC=C(C=C1)C(C)C(=O)O\",\n  \"inchi\": \"InChI=1S/C13H18O2/c1-9(2)8-11-4-6-12(7-5-11)10(3)13(14)15/h4-7,9-10H,8H2,1-3H3,(H,14,15)\",\n  \"inchi_key\": \"HEFNNWSXXWATRW-UHFFFAOYSA-N\"\n}",
+  "metadata": {},
+  "cache_metadata": {
+    "arguments": {
+      "name": "ibuprofen"
+    }
+  },
+  "artifacts": []
+}

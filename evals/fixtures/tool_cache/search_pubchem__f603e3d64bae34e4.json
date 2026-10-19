@@ -1,0 +1,13 @@
+{
+  "tool_name": "search_pubchem",
+  "args_hash": "f603e3d64bae34e4",
+  "content_type": "text",
+  "data": "No compounds found in PubChem for 'zzqxtholine'.",
+  "metadata": {},
+  "cache_metadata": {
+    "arguments": {
+      "name": "zzqxtholine"
+    }
+  },
+  "artifacts": []
+}

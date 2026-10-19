@@ -1,0 +1,137 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+schema_version = "1.3"
+
+[task]
+name = "aevom/binder-backbone-design"
+description = """
+Design a protein binder against a named epitope on a real target, then put a
+sequence on it. The two protein-design NIMs chained through a stored structure
+reference: fetch and clean the target, run RFDiffusion in binder mode against
+hotspot residues, and design sequences for the generated chain alone.
+
+The difficulty is entirely in the arguments. RFDiffusion selects de novo, motif
+scaffolding and binder design through one `contigs` string, so calling the tool
+proves nothing -- only a chain-qualified contig with a chain break, plus
+hotspots, means the model actually built against the target instead of ignoring
+it. The upstream rfdiffusion-nim skill is where that syntax is documented, which
+makes this a test of the bound skill as much as of the tool.
+"""
+keywords = ["aevom", "rfdiffusion", "proteinmpnn", "nim", "skills", "protein-design"]
+
+[environment]
+# `main` is the harness container, not part of the Aevom stack. It only needs a
+# stdlib Python to run the uploaded driver.
+docker_image = "python:3.12-slim"
+
+[agent]
+# RFDiffusion returns in ~20s and ProteinMPNN in a few seconds, so the budget is
+# mostly model round trips: the backbone has to be inspected between the two.
+timeout_sec = 1500.0
+
+[verifier]
+timeout_sec = 300.0
+
+# Graded by AevomVerifier (evals/aevom_eval/verifier.py). Only the dimensions
+# declared here are scored; see evals/aevom_eval/scoring.py.
+[metadata.expect]
+required_tool_sequence = [
+    "fetch_and_clean_pdb",
+    "rfdiffusion_design_backbone",
+    "proteinmpnn_design_sequence",
+]
+# Both design NIMs are builtins so the model never hand-builds the health.api
+# request the upstream skill prose describes. Reaching for http_request means the
+# Level 2 banner from api/skills/binding.py stopped superseding that prose.
+forbidden_tools = ["http_request"]
+
+# The target structure, the designed backbone, the designed sequences, and the
+# per-position probability matrix ProteinMPNN offloads as an array.
+required_artifact_types = ["pdb", "fasta", "array"]
+min_artifacts = 4
+
+# The design score is the one number in the answer that cannot be reproduced from
+# the instruction: it comes back from ProteinMPNN and nowhere else. Baselined live
+# on 2026-08-08 over two runs of exactly this recipe -- eight designs each,
+# individual scores spanning 0.834 to 1.018, best 0.834 and 0.942 -- so the band
+# accepts any of the designs the model might choose to report.
+#
+# Scores are per-residue negative log-likelihoods and lower is better, which the
+# upstream skill's prose gets backwards; the tool's own message states the
+# direction. Nothing here grades the direction, because a model that misreads it
+# still reports a number in this band.
+answer_numbers = [{ value = 0.95, tolerance = 0.30 }]
+answer_contains = ["MDM2"]
+# The designed length is deliberately not graded as a number. The instruction
+# names it, so a model could restate "100" without having restricted the design
+# to the binder chain. Whether it did is graded on the `chains` argument below.
+answer_min_chars = 200
+
+# Calibrated with headroom rather than set to zero. The most likely honest
+# failure is a 422 from RFDiffusion on the first contigs attempt: the endpoint
+# rejects chain IDs that are not in the input, and recovering from that by
+# re-reading the structure is correct behaviour.
+max_failed_tool_calls = 3
+allow_iteration_limit = false
+max_driver_errors = 0
+
+[[metadata.expect.required_tool_arguments]]
+# Binder design builds on a target, so the structure must arrive by reference.
+# Omitting it would silently produce an unrelated de novo protein -- the tool
+# substitutes a placeholder input_pdb in that mode.
+tool = "rfdiffusion_design_backbone"
+arg = "pdb_ref"
+present = true
+example = "pdb_a1b2c3d4"
+
+[[metadata.expect.required_tool_arguments]]
+# A chain-qualified span followed by the `/0` chain break is what distinguishes
+# building against 1YCR from generating a protein in isolation. A bare "100" or
+# "95-115" is a de novo design that happens to have been handed a target.
+tool = "rfdiffusion_design_backbone"
+arg = "contigs"
+matches = "[A-Za-z]\\d+-\\d+/0"
+example = "A25-109/0 100"
+
+[[metadata.expect.required_tool_arguments]]
+# Three hotspots were named in the instruction, in chain+number form. Without
+# them RFDiffusion picks its own interface and the binder need not compete with
+# p53 at all, which was the entire point of the request.
+tool = "rfdiffusion_design_backbone"
+arg = "hotspot_res"
+matches = "A54"
+min_items = 3
+example = ["A54", "A58", "A61"]
+
+[[metadata.expect.required_tool_arguments]]
+# The backbone RFDiffusion returns holds both chains, and it relabels them: the
+# designed 100 residues come back as chain A numbered 1-100, while MDM2 becomes
+# chain B numbered 101-185. Left unrestricted, ProteinMPNN redesigns MDM2's
+# sequence too, which the instruction forbids. Getting this right means having
+# inspected the output rather than assuming the input's chain letters survived.
+tool = "proteinmpnn_design_sequence"
+arg = "chains"
+present = true
+min_items = 1
+example = ["A"]
+
+[[metadata.expect.required_tool_arguments]]
+# Cysteines were excluded by name in the instruction. ProteinMPNN takes them out
+# globally through omit_aas; there is no post-hoc filtering that would do.
+tool = "proteinmpnn_design_sequence"
+arg = "omit_aas"
+matches = "C"
+example = ["C"]

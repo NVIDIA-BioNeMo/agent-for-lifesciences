@@ -1,0 +1,118 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+{{- if .Values.phoenix.enabled }}
+{{/*
+Arize Phoenix, the OpenTelemetry collector and trace UI. The api exports spans to
+it over OTLP gRPC on 4317; the web UI is on 6006.
+*/}}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: phoenix-data
+  labels:
+    {{- include "aevom.labels" (dict "root" $ "name" "phoenix") | nindent 4 }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+{{- with .Values.persistence.storageClass }}
+  storageClassName: {{ . }}
+{{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.persistence.phoenix.size }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: phoenix
+  labels:
+    {{- include "aevom.labels" (dict "root" $ "name" "phoenix") | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: phoenix
+  strategy:
+    # Recreate: ReadWriteOnce volume, same reasoning as postgres. This is the one
+    # deviation from the kustomize manifests, which left phoenix on the default
+    # RollingUpdate -- an upgrade that landed the new pod on a different node
+    # would then hang forever waiting for a volume the old pod still holds, and
+    # `helm upgrade --wait` would fail the deploy on it.
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: phoenix
+    spec:
+      containers:
+        - name: phoenix
+          image: {{ .Values.phoenix.image }}
+          ports:
+            - containerPort: 6006
+              name: http
+            - containerPort: 4317
+              name: otlp-grpc
+          env:
+            - name: PHOENIX_WORKING_DIR
+              value: "/phoenix_data"
+            # Set explicitly: Kubernetes injects PHOENIX_PORT for the Service of
+            # the same name, and Phoenix would otherwise read that as its own
+            # listen port.
+            - name: PHOENIX_PORT
+              value: "6006"
+            - name: PHOENIX_HOST
+              value: "0.0.0.0"
+          volumeMounts:
+            - name: phoenix-data
+              mountPath: /phoenix_data
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 6006
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 6006
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+          resources:
+            {{- toYaml .Values.phoenix.resources | nindent 12 }}
+      volumes:
+        - name: phoenix-data
+          persistentVolumeClaim:
+            claimName: phoenix-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: phoenix
+  labels:
+    {{- include "aevom.labels" (dict "root" $ "name" "phoenix") | nindent 4 }}
+spec:
+  selector:
+    app: phoenix
+  ports:
+    - port: 6006
+      targetPort: 6006
+      name: http
+    - port: 4317
+      targetPort: 4317
+      name: otlp-grpc
+{{- end }}

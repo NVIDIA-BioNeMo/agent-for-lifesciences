@@ -1,0 +1,291 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Eval stack -- mirrors the production Kubernetes deployment.
+#
+# This file is the single auditable statement of "what production looks like",
+# expressed as Compose so Harbor can own its lifecycle. It is deliberately NOT
+# an overlay of docker-compose.yml: that file carries dev-only bind mounts and
+# `uvicorn --reload`, and layering would leak them into the measurement.
+#
+# Every env var below is asserted against the Helm chart's production values
+# (deploy/helm/aevom/values.yaml overlaid with values-production.yaml) by
+# backend/api/tests/test_eval_compose_parity.py. Change one, and that test tells
+# you which side drifted. It also checks that every enabled chart workload has a
+# service here, which is why the section names below match the chart's.
+#
+# Images are pinned, never built. CI passes the same digests it is about to
+# deploy; locally, `make build` populates the default tags.
+#
+# Deviations from production, all of them deliberate:
+#   - molstar-headless: the harness's MolQL engine, standing in for the
+#     browser. Production has no such service because production has a browser.
+#     The backend never learns it exists -- the harness plays browser, see
+#     evals/aevom_eval/driver/molstar_bridge.py.
+#   - No ingress/HPA/PDB: single-replica, harness talks to the api directly.
+#   - Postgres/Redis/Phoenix use tmpfs-backed volumes, not PVCs, so each job
+#     starts from an empty database.
+
+# Without this the project name defaults to the directory name, `aevom`, which
+# is the dev stack's project: `docker compose -f docker-compose.eval.yml up`
+# would then tear down the developer's running containers, since postgres,
+# redis, rdkit, pyexec, vina and phoenix are named identically in both files.
+# Harbor passes --project-name per trial, which takes precedence over this.
+name: aevom-eval
+
+services:
+  api:
+    image: ${AEVOM_API_IMAGE:-aevom-api:latest}
+    # No `command:` override. Production runs the image's default CMD
+    # (uvicorn without --reload); overriding it here would measure a
+    # different server.
+    networks:
+      default:
+        aliases:
+          # Production resolves the api as `aevom-api` (k8s Service name), and
+          # both SANDBOX_BACKEND_URL and pyexec's BACKEND_URL hardcode it. The
+          # alias lets those values stay byte-identical to the ConfigMap.
+          - aevom-api
+    environment:
+      # --- from deploy/helm/aevom/values.yaml + values-production.yaml (`config`)
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      # Pinned to the internal endpoint, not the public default: the eval gate
+      # thresholds in .gitlab-ci.yml were calibrated against this model, and the
+      # build.nvidia.com Ultra samples differently enough that its scores are not
+      # comparable. Production pins the same value.
+      AEVOM_MODEL: ${AEVOM_MODEL:-nemotron-3-ultra-nvinf}
+      RDKIT_SERVICE_URL: http://rdkit:8000
+      PYEXEC_SERVICE_URL: http://pyexec:8000
+      VINA_SERVICE_URL: http://vina:8000
+      ADMET_SERVICE_URL: http://admet:8000
+      PLIP_SERVICE_URL: http://plip:8000
+      REDIS_URL: redis://redis:6379/0
+      SANDBOX_BACKEND_URL: http://aevom-api:8000
+      AEVOM_FEAT_STORAGE_ACCESS_API: "false"
+      AEVOM_FEAT_HTTP_REQUEST_TOOL: "false"
+      FEAT_ROSALIND: "false"
+      # Off, matching values.yaml rather than production: production's relay and
+      # distribution list are internal, and no eval exercises feedback. Values
+      # are hardcoded rather than interpolated because
+      # test_eval_compose_parity.py compares them against the chart byte for
+      # byte; it lists these keys in PUBLIC_DEFAULT_CONFIG.
+      AEVOM_FEAT_FEEDBACK_EMAIL: "false"
+      FEEDBACK_EMAIL_ADDRESS: ""
+      FEEDBACK_FROM_ADDRESS: ""
+      SMTP_HOST: ""
+      SMTP_PORT: "587"
+      SMTP_STARTTLS: "true"
+      SMTP_USERNAME: ""
+      # --- from deploy/helm/aevom/values.yaml (`apiEnv`, literal env not ConfigMap)
+      DATABASE_URL: postgresql+asyncpg://aevom:${POSTGRES_PASSWORD:-aevom_eval_password}@postgres:5432/aevom
+      NVIDIA_API_KEY_FILE: /run/secrets/nvidia_api_key
+      PHOENIX_COLLECTOR_ENDPOINT: http://phoenix:4317
+      PHOENIX_PROJECT_NAME: aevom
+      PHOENIX_PORT: "6006"
+      # --- eval-only: tool cache mode (off => live tools, production behaviour)
+      AEVOM_TOOL_CACHE_MODE: ${AEVOM_TOOL_CACHE_MODE:-off}
+      AEVOM_TOOL_CACHE_DIR: /tool_cache
+      # Per-session call budgets, e.g. "boltz2=8,admet_predict=15". Empty means
+      # unlimited, which is production's default; a benchmark harness that has
+      # to respect an oracle-call limit sets it here.
+      AEVOM_TOOL_BUDGETS: ${AEVOM_TOOL_BUDGETS:-}
+    volumes:
+      - type: bind
+        source: ${HOST_PROJECT_PATH:-.}/API_KEY_NV
+        target: /run/secrets/nvidia_api_key
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${HOST_PROJECT_PATH:-.}/API_KEY_NVINF
+        target: /run/secrets/nvidia_api_key_nvinf
+        read_only: true
+        bind:
+          create_host_path: false
+      # Optional: an empty file (preflight creates one) means Anthropic models
+      # are not configured. Populated, they appear in the model dropdown.
+      - type: bind
+        source: ${HOST_PROJECT_PATH:-.}/API_KEY_ANTHROPIC
+        target: /run/secrets/anthropic_api_key
+        read_only: true
+        bind:
+          create_host_path: false
+      # Optional, same convention: OpenAI models appear when populated.
+      - type: bind
+        source: ${HOST_PROJECT_PATH:-.}/API_KEY_OPENAI
+        target: /run/secrets/openai_api_key
+        read_only: true
+        bind:
+          create_host_path: false
+      # The image carries prompts.md, and production mounts the aevom-prompts
+      # ConfigMap over it; this bind is the same override, so the suite measures
+      # the working tree's prompt rather than the built image's. Long form for
+      # create_host_path:false, as above -- the short form would let the daemon
+      # invent a *directory* named prompts.md when it cannot see the source, and
+      # the agent would then start with no system prompt rather than failing.
+      - type: bind
+        source: ${HOST_PROJECT_PATH:-.}/prompts.md
+        target: /prompts.md
+        read_only: true
+        bind:
+          create_host_path: false
+      # Host path, not a compose-relative one: under docker-outside-of-docker the
+      # daemon resolves this in its own filesystem, where /workspaces/... does
+      # not exist. Same reason the secrets above go through HOST_PROJECT_PATH.
+      - ${AEVOM_TOOL_CACHE_HOST_DIR:-${HOST_PROJECT_PATH:-.}/evals/fixtures/tool_cache}:/tool_cache
+    healthcheck:
+      # Same probe target as the production readinessProbe.
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/api/health',timeout=5).status==200 else 1)",
+        ]
+      interval: 5s
+      timeout: 15s
+      retries: 30
+      start_period: 20s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rdkit:
+        condition: service_healthy
+      pyexec:
+        condition: service_healthy
+      vina:
+        condition: service_healthy
+      admet:
+        condition: service_healthy
+      plip:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: aevom
+      POSTGRES_USER: aevom
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-aevom_eval_password}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aevom -d aevom"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  rdkit:
+    image: ${AEVOM_RDKIT_IMAGE:-aevom-rdkit:latest}
+    environment:
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  pyexec:
+    image: ${AEVOM_PYEXEC_IMAGE:-aevom-pyexec:latest}
+    environment:
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      BACKEND_URL: http://aevom-api:8000
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  vina:
+    image: ${AEVOM_VINA_IMAGE:-aevom-vina:latest}
+    environment:
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      VINA_GPU: "false"
+      CONFORMER_COUNT: ${CONFORMER_COUNT:-50}
+      ROT_BOND_THRESHOLD: ${ROT_BOND_THRESHOLD:-15}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+
+  admet:
+    image: ${AEVOM_ADMET_IMAGE:-aevom-admet:latest}
+    environment:
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      ADMET_EAGER_LOAD: "true"
+    healthcheck:
+      # /ready rather than /health: this service answers /health as soon as
+      # uvicorn is up, and the api must not start a trial while the ensemble is
+      # still loading -- a task that scores ADMET in its first tool call would
+      # otherwise wait out the load inside the turn.
+      test: ["CMD", "curl", "-f", "http://localhost:8000/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 180s
+
+  plip:
+    image: ${AEVOM_PLIP_IMAGE:-aevom-plip:latest}
+    environment:
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  phoenix:
+    image: arizephoenix/phoenix:version-13.0.3
+    environment:
+      PHOENIX_WORKING_DIR: /phoenix_data
+    volumes:
+      - phoenix_data:/phoenix_data
+
+  # Harness infrastructure, not part of production. See the header note.
+  molstar-headless:
+    image: ${AEVOM_MOLSTAR_IMAGE:-aevom-molstar-headless:latest}
+    environment:
+      MOLSTAR_PORT: "8020"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "const http=require('http');http.get('http://localhost:8020/health',r=>{process.exit(r.statusCode===200?0:1)}).on('error',()=>process.exit(1))",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+
+networks:
+  default:
+    driver: bridge
+
+volumes:
+  phoenix_data:

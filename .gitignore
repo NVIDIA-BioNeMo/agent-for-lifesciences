@@ -1,0 +1,103 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Environment and secrets
+.env
+.env.*
+API_KEY*
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.eggs/
+dist/
+build/
+.venv/
+.venv-results/
+venv/
+*.egg
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build outputs
+frontend/dist/
+
+# IDE and editors
+.idea/
+*.swp
+*.swo
+*~
+.project
+.settings/
+
+# Claude Code local state: settings.local.json is per-machine by convention, and
+# worktrees/ is agent scratch space holding a second checkout of this repo.
+#
+# Listed individually rather than ignoring .claude/ wholesale. Shared agent
+# config lives in .cursor/ and is tracked; a .claude/skills/ or .claude/commands/
+# added later should still be committable rather than silently untracked.
+.claude/settings.local.json
+.claude/worktrees/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Docker
+*.log
+
+# Testing
+.coverage
+htmlcov/
+.pytest_cache/
+.tox/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Generated version file (from git describe)
+.version
+
+# Build stamps for incremental Make builds
+.build-stamps/
+
+# Development files
+tmp/
+
+# Harbor eval job output: trajectories, per-trial verdicts, gate.json, and the
+# scratch copy of the tool cache. Regenerated on every run. The fixtures under
+# evals/fixtures/ are committed on purpose and are not covered by this.
+#
+# Anchored to the repo root on purpose: an unanchored `jobs/` also matches the
+# `backend/api/jobs/` source package, so a new module added there would be
+# silently untracked. The existing files in it are only tracked because they
+# predate the rule.
+/jobs/
+
+# Local downloads from examples/storage-access/README.md.
+/aevom-results/
+
+aevom-with-gym.code-workspace
+
+# Large training data (use cluster storage, not git)
+training/data/aevom_train.jsonl

@@ -1,0 +1,60 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# OpenShell gateway configuration for local development (Docker compute driver).
+#
+# Used by docker-compose.openshell.yml. Production runs the OpenShell Helm chart
+# instead; see docs/openshell_sandbox.md.
+#
+# Local-only posture: TLS is off and user auth is off, so anything that can reach
+# port 8090 can create sandboxes. The port is published on host loopback only, and
+# inside Docker it is reachable from the aevom_default network. Never reuse this
+# file for a shared gateway.
+
+[openshell]
+version = 2
+
+[openshell.gateway]
+# Listener addresses are passed as flags in docker-compose.openshell.yml, which
+# override the TOML.
+log_level           = "info"
+compute_driver      = "docker"
+disable_tls         = true
+
+# Supervisors authenticate to the gateway with JWTs minted from this key. The
+# key pair is generated into the openshell_jwt volume by the openshell-keys
+# service on first start.
+[openshell.gateway.gateway_jwt]
+signing_key_path = "/etc/openshell/jwt/signing.pem"
+public_key_path  = "/etc/openshell/jwt/public.pem"
+kid_path         = "/etc/openshell/jwt/kid"
+gateway_id       = "aevom-local"
+
+[openshell.gateway.auth]
+allow_unauthenticated_users = true
+
+[openshell.drivers.docker]
+default_image         = "aevom-pyexec-sandbox:latest"
+sandbox_runtime_image = "ghcr.io/nvidia/openshell/sandbox:0.1.2"
+supervisor_image      = "ghcr.io/nvidia/openshell/supervisor:0.1.2"
+image_pull_policy     = "if_not_present"
+# Process cap per sandbox (fork-bomb guard). pyexec needs uvicorn plus BLAS and
+# OpenMP threads; 512 leaves ample headroom.
+sandbox_pids_limit    = 512
+sandbox_label         = "aevom"
+# grpc_endpoint is left unset: the driver then points supervisors, which run in
+# the host network namespace, at http://127.0.0.1:<bind port>, served by the
+# loopback-published port in docker-compose.openshell.yml.
+app_armor_profile     = "Unconfined"

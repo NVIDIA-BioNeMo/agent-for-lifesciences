@@ -1,0 +1,59 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+{{/*
+One HorizontalPodAutoscaler per autoscaling workload, all from the same shape.
+The HPA name matches its Deployment, as it did under kustomize.
+
+These need metrics-server on the cluster. Without it the HPA reports
+<unknown>/70% and never scales; the Deployments still run at one replica, so the
+release comes up either way.
+
+The corresponding Deployment templates omit `replicas` whenever autoscaling is
+enabled here -- see the note in values.yaml.
+*/}}
+{{- $components := list "api" "rdkit" "pyexec" "vina" }}
+{{- range $component := $components }}
+{{- $values := index $.Values $component }}
+{{- $rendered := or (ne $component "pyexec") (eq $.Values.pyexec.mode "direct") }}
+{{- if and $values.enabled $values.autoscaling.enabled $rendered }}
+{{- $name := ternary "aevom-api" $component (eq $component "api") }}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "aevom.labels" (dict "root" $ "name" $name) | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ $name }}
+  minReplicas: {{ $values.autoscaling.minReplicas }}
+  maxReplicas: {{ $values.autoscaling.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ $values.autoscaling.targetCPUUtilizationPercentage }}
+  {{- with $values.autoscaling.behavior }}
+  behavior:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- end }}
+{{- end }}

@@ -1,0 +1,226 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+{{- if not (has .Values.pyexec.mode (list "direct" "openshell")) }}
+{{- fail (printf "pyexec.mode must be direct or openshell, not %q" .Values.pyexec.mode) }}
+{{- end }}
+{{- $openshell := eq .Values.pyexec.mode "openshell" }}
+{{- /* The sandbox policy names this exact host, and SANDBOX_BACKEND_URL must match it. */}}
+{{- $backendHost := printf "aevom-api.%s.svc.cluster.local" .Release.Namespace }}
+{{- if .Values.api.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aevom-api
+  labels:
+    {{- include "aevom.labels" (dict "root" $ "name" "aevom-api") | nindent 4 }}
+spec:
+  {{- if not .Values.api.autoscaling.enabled }}
+  replicas: 1
+  {{- end }}
+  selector:
+    matchLabels:
+      app: aevom-api
+  template:
+    metadata:
+      labels:
+        app: aevom-api
+      annotations:
+        # Rolls the pods when config or the prompt changes. Env from a ConfigMap
+        # is read once at container start, so without these a config-only deploy
+        # would report success and change nothing.
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/prompts: {{ .Values.prompts.content | sha256sum }}
+        {{- if and $openshell .Values.openshell.clientTlsChecksum }}
+        checksum/openshell-client-tls: {{ .Values.openshell.clientTlsChecksum | quote }}
+        {{- end }}
+    spec:
+      # The api talks to the Kubernetes API for nothing, so it has no use for a
+      # token, and mounting one has caused startup failures on this cluster.
+      automountServiceAccountToken: false
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      initContainers:
+        # init_db() runs at import time in the api's lifespan hook and fails hard
+        # if Postgres is not accepting connections, so wait rather than crash-loop.
+        - name: wait-for-postgres
+          image: {{ .Values.postgres.image }}
+          command:
+            - sh
+            - -c
+            - |
+              until pg_isready -h postgres -U aevom -d aevom; do
+                echo "Waiting for postgres..."
+                sleep 2
+              done
+              echo "Postgres is ready!"
+      containers:
+        - name: api
+          image: {{ include "aevom.image" (dict "root" $ "component" "api") }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: 8000
+          envFrom:
+            # Every key in `config` reaches the api, so adding one needs no
+            # change here. Explicit env below still wins on a name collision.
+            - configMapRef:
+                name: aevom-config
+          env:
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.app.secretName }}
+                  key: POSTGRES_PASSWORD
+            {{- if .Values.secrets.smtp.enabled }}
+            - name: SMTP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.smtp.secretName }}
+                  key: {{ .Values.secrets.smtp.key }}
+            {{- end }}
+            {{- range $key, $value := .Values.apiEnv }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+            {{- end }}
+            {{- if $openshell }}
+            {{- with .Values.openshell }}
+            - name: PYEXEC_MODE
+              value: openshell
+            - name: OPENSHELL_GATEWAY
+              value: {{ .gateway | quote }}
+            - name: OPENSHELL_TLS_CA
+              value: /run/secrets/openshell/ca.crt
+            - name: OPENSHELL_TLS_CERT
+              value: /run/secrets/openshell/tls.crt
+            - name: OPENSHELL_TLS_KEY
+              value: /run/secrets/openshell/tls.key
+            - name: OPENSHELL_SANDBOX_IMAGE
+              value: {{ .sandboxImage | default (include "aevom.image" (dict "root" $ "component" "pyexec-sandbox")) | quote }}
+            - name: OPENSHELL_SPARE_POOL
+              value: {{ .sparePool | quote }}
+            - name: OPENSHELL_MAX_ACTIVE
+              value: {{ .maxActive | quote }}
+            - name: OPENSHELL_IDLE_TTL_S
+              value: {{ .idleTtlSeconds | quote }}
+            - name: OPENSHELL_READY_TIMEOUT_S
+              value: {{ .readyTimeoutSeconds | quote }}
+            - name: OPENSHELL_SANDBOX_CPU
+              value: {{ .sandboxCpu | quote }}
+            - name: OPENSHELL_SANDBOX_MEMORY
+              value: {{ .sandboxMemory | quote }}
+            - name: OPENSHELL_POLICY_PATH
+              value: /app/deploy/openshell/pyexec-policy.yaml
+            - name: OPENSHELL_BACKEND_HOST
+              value: {{ $backendHost }}
+            - name: OPENSHELL_BACKEND_PORT
+              value: "8000"
+            - name: SANDBOX_BACKEND_URL
+              value: {{ printf "http://%s:8000" $backendHost }}
+            {{- end }}
+            {{- end }}
+          volumeMounts:
+            {{- if $openshell }}
+            - name: openshell-client-tls
+              mountPath: /run/secrets/openshell
+              readOnly: true
+            {{- end }}
+            - name: nvidia-api-key
+              mountPath: /run/secrets/nvidia_api_key
+              subPath: nvidia_api_key
+              readOnly: true
+            - name: anthropic-api-key
+              mountPath: /run/secrets/anthropic_api_key
+              subPath: anthropic_api_key
+              readOnly: true
+            - name: openai-api-key
+              mountPath: /run/secrets/openai_api_key
+              subPath: openai_api_key
+              readOnly: true
+            {{- if .Values.secrets.nvinf.enabled }}
+            - name: nvidia-api-key-nvinf
+              mountPath: /run/secrets/nvidia_api_key_nvinf
+              subPath: nvidia_api_key_nvinf
+              readOnly: true
+            {{- end }}
+            {{- if .Values.prompts.content }}
+            # subPath so this replaces the image's /prompts.md rather than
+            # mounting a directory over the filesystem root.
+            - name: prompts
+              mountPath: /prompts.md
+              subPath: prompts.md
+            {{- end }}
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 8000
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 30
+            failureThreshold: 5
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 15
+            failureThreshold: 3
+          resources:
+            {{- toYaml .Values.api.resources | nindent 12 }}
+      volumes:
+        {{- if $openshell }}
+        - name: openshell-client-tls
+          secret:
+            secretName: {{ .Values.openshell.clientTlsSecret }}
+        {{- end }}
+        # Optional so that either LLM key alone is enough to start; the api
+        # itself enforces that at least one is present.
+        - name: nvidia-api-key
+          secret:
+            secretName: {{ .Values.secrets.nvidiaApiKey.secretName }}
+            optional: true
+            items:
+              - key: {{ .Values.secrets.nvidiaApiKey.key }}
+                path: nvidia_api_key
+        - name: anthropic-api-key
+          secret:
+            secretName: {{ .Values.secrets.anthropic.secretName }}
+            optional: true
+            items:
+              - key: {{ .Values.secrets.anthropic.key }}
+                path: anthropic_api_key
+        - name: openai-api-key
+          secret:
+            secretName: {{ .Values.secrets.openai.secretName }}
+            optional: true
+            items:
+              - key: {{ .Values.secrets.openai.key }}
+                path: openai_api_key
+        {{- if .Values.secrets.nvinf.enabled }}
+        - name: nvidia-api-key-nvinf
+          secret:
+            secretName: {{ .Values.secrets.nvinf.secretName }}
+            items:
+              - key: {{ .Values.secrets.nvinf.key }}
+                path: nvidia_api_key_nvinf
+        {{- end }}
+        {{- if .Values.prompts.content }}
+        - name: prompts
+          configMap:
+            name: aevom-prompts
+        {{- end }}
+{{- end }}

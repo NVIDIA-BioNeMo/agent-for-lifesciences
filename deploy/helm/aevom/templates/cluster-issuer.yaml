@@ -1,0 +1,62 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+{{- if .Values.certManager.enabled }}
+{{/*
+Let's Encrypt issuers for ingress.tls. Two things to know before enabling this:
+
+  - ClusterIssuer is cluster-scoped, so a namespaced release reaches outside its
+    namespace here. If two Aevom releases share a cluster, only one may own these.
+  - cert-manager must already be installed, or the ClusterIssuer kind does not
+    exist and the whole release fails to render.
+
+The staging issuer exists to test the plumbing: Let's Encrypt rate-limits the
+production endpoint hard, and a misconfigured HTTP-01 solver burns through the
+quota quickly.
+*/}}
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod
+  labels:
+    {{- include "aevom.labels" (dict "root" $ "name" "aevom") | nindent 4 }}
+spec:
+  acme:
+    server: {{ .Values.certManager.server }}
+    email: {{ required "certManager.email is required when certManager.enabled is true -- Let's Encrypt rejects a registration without one." .Values.certManager.email }}
+    privateKeySecretRef:
+      name: letsencrypt-prod-key
+    solvers:
+      - http01:
+          ingress:
+            class: {{ .Values.certManager.ingressClass }}
+---
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-staging
+  labels:
+    {{- include "aevom.labels" (dict "root" $ "name" "aevom") | nindent 4 }}
+spec:
+  acme:
+    server: {{ .Values.certManager.stagingServer }}
+    email: {{ required "certManager.email is required when certManager.enabled is true -- Let's Encrypt rejects a registration without one." .Values.certManager.email }}
+    privateKeySecretRef:
+      name: letsencrypt-staging-key
+    solvers:
+      - http01:
+          ingress:
+            class: {{ .Values.certManager.ingressClass }}
+{{- end }}

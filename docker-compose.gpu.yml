@@ -1,0 +1,51 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# GPU override for Vina GPU acceleration
+# Usage: docker compose -f docker-compose.yml -f docker-compose.gpu.yml up
+# Or:    make up-gpu / make dev-gpu
+#
+# Prerequisites:
+#   - NVIDIA GPU with CUDA support
+#   - NVIDIA driver 560+ on x86_64 (CUDA 12.6), 575+ on arm64 (CUDA 12.9)
+#   - nvidia-container-toolkit installed
+#   - Run 'make check' to verify GPU support
+
+services:
+  vina:
+    build:
+      context: ./services/vina
+      dockerfile: Dockerfile
+      target: gpu-final  # Build GPU-accelerated Vina
+    image: aevom-vina-gpu:latest
+    environment:
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - VINA_GPU=true
+      - CONFORMER_COUNT=${CONFORMER_COUNT:-50}
+      - ROT_BOND_THRESHOLD=${ROT_BOND_THRESHOLD:-15}
+      - UNIDOCK_SEARCH_MODE=${UNIDOCK_SEARCH_MODE:-balance}
+      # Out-of-process nvMolKit conformer worker (see services/vina/conformer_worker)
+      - CONFORMER_WORKER_PYTHON=${CONFORMER_WORKER_PYTHON:-/opt/aevom-conformer-worker/bin/python}
+      - CONFORMER_WORKER_STARTUP_TIMEOUT_S=${CONFORMER_WORKER_STARTUP_TIMEOUT_S:-120}
+      - CONFORMER_WORKER_REQUEST_TIMEOUT_S=${CONFORMER_WORKER_REQUEST_TIMEOUT_S:-300}
+      - CONFORMER_WORKER_MAX_PAYLOAD_BYTES=${CONFORMER_WORKER_MAX_PAYLOAD_BYTES:-67108864}
+      - CONFORMER_WORKER_RESTART_BACKOFF_S=${CONFORMER_WORKER_RESTART_BACKOFF_S:-60}
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]

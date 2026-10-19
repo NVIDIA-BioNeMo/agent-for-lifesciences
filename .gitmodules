@@ -1,0 +1,37 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Upstream source for the NIM skill prose loaded by backend/api/skills/binding.py.
+#
+# Pinned deliberately, and with no `branch =` key, so `git submodule update`
+# always restores the recorded commit and never follows upstream main. The
+# skills are live documents; an unpinned bump could rewrite the instructions the
+# model follows without any change landing in this repo.
+#
+# Currently at 23d4835 (main, 2026-08-07) rather than the v0.1.0 tag: since that
+# tag the msa-search skill gained its parallel-download and database-profile
+# guidance, and the other two bound skills are unchanged.
+#
+# The same commit is written out in third_party/bionemo-agent-toolkit.commit,
+# which is what `make submodules` downloads when there is no .git (a source
+# tarball). test_submodule_pin.py fails if the two disagree.
+#
+# To move the pin: update the submodule and that file, then re-run the byte-identity and
+# allowlist assertions in backend/api/tests/test_skill_binding.py. Those tests
+# are what catch upstream renaming a skill directory, restructuring
+# references/, or adding a NIM that Aevom has no tool for.
+[submodule "third_party/bionemo-agent-toolkit"]
+	path = third_party/bionemo-agent-toolkit
+	url = https://github.com/NVIDIA-BioNeMo/bionemo-agent-toolkit.git

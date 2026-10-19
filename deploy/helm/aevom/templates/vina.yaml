@@ -1,0 +1,90 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+{{- if .Values.vina.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vina
+  labels:
+    {{- include "aevom.labels" (dict "root" $ "name" "vina") | nindent 4 }}
+spec:
+  {{- if not .Values.vina.autoscaling.enabled }}
+  replicas: 1
+  {{- end }}
+  selector:
+    matchLabels:
+      app: vina
+  template:
+    metadata:
+      labels:
+        app: vina
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: vina
+          image: {{ include "aevom.image" (dict "root" $ "component" "vina") }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: 8000
+          env:
+            - name: LOG_LEVEL
+              valueFrom:
+                configMapKeyRef:
+                  name: aevom-config
+                  key: LOG_LEVEL
+            {{- range $key, $value := .Values.vina.env }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+            {{- end }}
+          # Docking runs for minutes. The probes below are deliberately slack:
+          # the handler is async so /health does answer during a run, but a
+          # saturated pod can still miss a beat, and restarting it mid-docking
+          # throws away the work.
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 90
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 60
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          resources:
+            {{- toYaml .Values.vina.resources | nindent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vina
+  labels:
+    {{- include "aevom.labels" (dict "root" $ "name" "vina") | nindent 4 }}
+spec:
+  selector:
+    app: vina
+  ports:
+    - port: 8000
+      targetPort: 8000
+{{- end }}

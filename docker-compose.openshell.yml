@@ -1,0 +1,134 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Overlay: run python_execute inside OpenShell sandboxes (one per chat session).
+#
+#   docker compose -f docker-compose.yml -f docker-compose.openshell.yml up -d
+#   docker compose -f docker-compose.dev.yml -f docker-compose.openshell.yml up -d
+#
+# or `make up-openshell` / `make dev-openshell`. See docs/openshell_sandbox.md.
+#
+# The gateway creates sandbox containers through the host Docker socket
+# (Docker-outside-of-Docker). Socket access is root-equivalent on the host, which
+# is acceptable for a single-user dev machine and is why this overlay is not used
+# for any shared deployment; production uses the OpenShell Helm chart.
+#
+# The shared pyexec service is not started in this mode: the backend fails closed
+# rather than falling back to an unsandboxed interpreter. Training is unaffected
+# and keeps using pyexec directly.
+
+services:
+  # One-shot: create the Ed25519 key pair the gateway uses to mint supervisor
+  # credentials. Reuses the pyexec image, which ships openssl and is built in
+  # both the production and dev stacks.
+  openshell-keys:
+    image: aevom-pyexec:latest
+    user: "0"
+    entrypoint:
+      - sh
+      - -c
+      - |
+        set -e
+        cd /jwt
+        if [ ! -s signing.pem ]; then
+          openssl genpkey -algorithm ed25519 -out signing.pem
+          openssl pkey -in signing.pem -pubout -out public.pem
+          openssl rand -hex 16 > kid
+          chmod 600 signing.pem
+        fi
+    volumes:
+      - openshell_jwt:/jwt
+    restart: "no"
+
+  openshell-gateway:
+    image: ghcr.io/nvidia/openshell/gateway:0.1.2
+    # The image CMD binds 8080, which the dev backend already publishes. The port
+    # must match the published port below.
+    command: ["--bind-address", "0.0.0.0", "--port", "8090", "--health-port", "8091"]
+    # Distroless image: numeric UID. Needs the docker socket and to write the
+    # extracted supervisor binary into /var/lib/openshell.
+    user: "0"
+    depends_on:
+      openshell-keys:
+        condition: service_completed_successfully
+    extra_hosts:
+      - "host.openshell.internal:host-gateway"
+    ports:
+      # Supervisors run in the host network namespace and reach the gateway on
+      # the published port, which must equal the bind port in gateway.toml.
+      - "127.0.0.1:8090:8090"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Same absolute path on host and in the container: the driver hands paths
+      # under it to the host daemon as bind-mount sources.
+      - type: bind
+        source: /var/lib/openshell
+        target: /var/lib/openshell
+        bind:
+          create_host_path: true
+      - type: bind
+        source: ${HOST_PROJECT_PATH:-.}/deploy/openshell/gateway.toml
+        target: /etc/openshell/gateway.toml
+        read_only: true
+      - openshell_jwt:/etc/openshell/jwt:ro
+    environment:
+      OPENSHELL_GATEWAY_CONFIG: /etc/openshell/gateway.toml
+      OPENSHELL_DB_URL: "sqlite:/var/lib/openshell/gateway.db?mode=rwc"
+      XDG_DATA_HOME: /var/lib/openshell
+      HOME: /var/lib/openshell
+      OPENSHELL_TELEMETRY_ENABLED: "false"
+    restart: unless-stopped
+
+  backend:
+    # Sandboxes reach the backend from the host network namespace, where compose
+    # DNS names do not resolve, so the backend gets a fixed address that the
+    # sandbox policy names exactly.
+    networks:
+      default:
+        ipv4_address: 192.168.249.250
+    environment:
+      - PYEXEC_MODE=openshell
+      - OPENSHELL_GATEWAY=openshell-gateway:8090
+      - OPENSHELL_POLICY_PATH=/app/deploy/openshell/pyexec-policy.yaml
+      - OPENSHELL_BACKEND_HOST=192.168.249.250
+      - OPENSHELL_BACKEND_PORT=8000
+      - SANDBOX_BACKEND_URL=http://192.168.249.250:8000
+      - OPENSHELL_SANDBOX_IMAGE=aevom-pyexec-sandbox:latest
+      - OPENSHELL_SPARE_POOL=${OPENSHELL_SPARE_POOL:-2}
+      - OPENSHELL_MAX_ACTIVE=${OPENSHELL_MAX_ACTIVE:-8}
+    volumes:
+      - ${HOST_PROJECT_PATH:-.}/deploy/openshell:/app/deploy/openshell:ro
+    depends_on:
+      openshell-gateway:
+        condition: service_started
+      pyexec:
+        condition: service_healthy
+        required: false
+
+  pyexec:
+    profiles: ["direct-pyexec"]
+
+  # Build-only: the sandbox image layers a non-root user onto aevom-pyexec. The
+  # gateway starts containers from it; compose never runs it.
+  pyexec-sandbox:
+    profiles: ["build-only"]
+    image: aevom-pyexec-sandbox:latest
+    build:
+      context: ./services/pyexec
+      dockerfile: Dockerfile.openshell
+
+volumes:
+  openshell_jwt:
+    driver: local

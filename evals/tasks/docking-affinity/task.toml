@@ -1,0 +1,65 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+schema_version = "1.3"
+
+[task]
+name = "aevom/docking-affinity"
+description = """
+Dock a ligand into a protein and report the binding affinity. Exercises the
+longest tool chain Aevom has: fetch and clean a structure, build a 3D ligand,
+run AutoDock Vina in the sidecar service, and read the result back -- all of it
+passing artifacts by reference rather than through the model's context.
+"""
+keywords = ["aevom", "docking", "vina", "storage-pattern"]
+
+[environment]
+docker_image = "python:3.12-slim"
+# Vina is the slow service; CPU docking of a small ligand takes minutes.
+cpus = 4
+
+[agent]
+timeout_sec = 2700.0
+
+[verifier]
+timeout_sec = 300.0
+
+[metadata.expect]
+required_tools = ["fetch_and_clean_pdb", "vina_dock"]
+# The storage pattern is the thing under test as much as the chemistry: docking
+# must leave artifacts behind rather than inlining structures into the answer.
+required_artifact_types = ["pdb"]
+min_artifacts = 2
+# Vina is stochastic, so the affinity is bounded rather than pinned. A wide
+# window still separates a real docking run from a hallucinated number: the
+# tolerance spans roughly -4 to -12 kcal/mol. A baseline run reported -6.51.
+answer_numbers = [{ value = -8.0, tolerance = 4.0 }]
+answer_contains_any = [["kcal/mol", "kcal per mol"]]
+answer_contains = ["affinity"]
+# Budgets below are calibrated from baseline runs against live tools, with
+# headroom, rather than set to zero on principle: PubChem answers 503
+# PUGREST.ServerBusy often enough that a strict budget would measure the weather.
+# A baseline saw 1 failure (download_pubchem_sdf, HTTP 503).
+max_failed_tool_calls = 3
+allow_iteration_limit = false
+max_driver_errors = 0
+# vina_dock is the one tool that opts into JobManager tracking, so this is
+# where the durable-job contract is actually exercised: the dock must be
+# recorded as a job that reached a terminal state, not merely have returned a
+# number. Also the only task asserting a policy decision reached the
+# trajectory -- the field was on the wire for a while with nothing reading it,
+# which is precisely how it went unnoticed that it wasn't.
+required_job_status = [{ tool = "vina_dock", status = "completed" }]
+policy_decision_expected = [{ tool = "vina_dock", decision = "allow" }]

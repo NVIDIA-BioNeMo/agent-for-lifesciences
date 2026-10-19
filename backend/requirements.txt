@@ -1,0 +1,90 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# 0.142.0 is the first release accepting FastAPI(telemetry=...), which main.py
+# uses to keep its native tracing from parenting the chat_request root span.
+fastapi>=0.142.0
+uvicorn[standard]>=0.24.0
+httpx>=0.25.0
+sse-starlette>=1.8.0
+pydantic>=2.5.0
+
+# Database
+sqlalchemy[asyncio]>=2.0.23
+asyncpg>=0.29.0
+alembic>=1.13.0
+
+# LLM Client
+# The Responses API client for OpenAI models was validated on 3.16-3.26.
+openai>=3.16,<4
+# Native Messages API for Claude models. The OpenAI-compatible endpoint rejects
+# adaptive thinking, the only thinking mode the 5.x models accept. Capped below
+# 1.0: that major moved the SDK from httpx to httpx2 and has not been validated.
+anthropic>=0.111.0,<1.0
+
+# LangGraph Agent Framework
+langgraph>=1.2.14
+langchain-core>=1.6.10
+langchain-openai>=1.7.1
+
+# Templating
+Jinja2>=3.1.6
+
+# Email (user feedback relay). Async so relaying a message cannot block the
+# event loop the chat stream is running on.
+aiosmtplib>=3.0
+
+# Telemetry (OpenTelemetry + Arize Phoenix)
+arize-phoenix-otel>=0.6.0
+arize-phoenix==13.0.3  # Must match Docker image arizephoenix/phoenix:version-13.0.3
+# arize-phoenix 13.0.3 declares arize-phoenix-evals>=2.8.0 with no upper bound, but
+# its phoenix/experiments/functions.py still imports phoenix.evals.models.rate_limiters,
+# which was REMOVED in arize-phoenix-evals 3.0. Without this cap the resolver pulls
+# evals 3.x and `from phoenix.otel import register` (and `phoenix serve`) crash with
+# `ModuleNotFoundError: No module named 'phoenix.evals.models'`, silently disabling
+# all training telemetry. Cap to the 2.x line that still ships phoenix.evals.models.
+arize-phoenix-evals>=2.8.0,<3
+# arize-phoenix 13.0.3 pins strawberry-graphql 0.287.3, which accepts graphql-core <3.4
+# but imports graphql.execution.ExecutionContext -- REMOVED in graphql-core 3.3.0.
+# arize-phoenix-client registers an auto-loaded pytest plugin that imports phoenix,
+# so without this cap pytest itself dies at startup with an ImportError, and
+# `from phoenix.otel import register` fails, silently disabling telemetry.
+# Drop this cap when arize-phoenix is upgraded to a release with a newer strawberry.
+graphql-core>=3.2.0,<3.3
+opentelemetry-api>=1.20.0
+opentelemetry-sdk>=1.20.0
+opentelemetry-exporter-otlp-proto-grpc>=1.20.0
+
+# Redis (shared state for horizontal scaling)
+redis[hiredis]>=5.0.0
+
+# Structure manipulation. The RCSB APIs are reached over plain HTTP with httpx
+# rather than through the rcsb-api client, which calls asyncio.run() internally
+# and fetches a GraphQL schema at import time.
+biopython>=1.83
+
+# Numeric array artifacts. Skill endpoints return auxiliary numeric outputs
+# (PAE/pLDDT matrices, per-residue scores) that we persist as .npz `array`
+# artifacts for python_execute rather than dumping into the LLM context.
+# Present transitively via biopython, but pinned here because we import it.
+numpy>=1.26
+
+# PubChem compound search and property retrieval
+pubchempy>=1.0.4
+
+# OpenShell gateway client for python_execute in PYEXEC_MODE=openshell. Pinned
+# exactly: the gateway, supervisor and sandbox images are pinned to the same
+# release in docker-compose.openshell.yml and deploy/openshell/gateway.toml.
+openshell==0.1.2

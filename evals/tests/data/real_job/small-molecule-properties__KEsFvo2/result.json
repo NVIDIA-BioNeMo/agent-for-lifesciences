@@ -1,0 +1,131 @@
+{
+    "id": "1d644956-415d-4ac3-b73b-68d233ebf35c",
+    "task_name": "aevom/small-molecule-properties",
+    "trial_name": "small-molecule-properties__KEsFvo2",
+    "trial_uri": "file:///workspaces/aevom/jobs/2026-08-06__18-28-37/small-molecule-properties__KEsFvo2",
+    "task_id": {
+        "path": "evals/tasks/small-molecule-properties"
+    },
+    "source": null,
+    "task_checksum": "aed0be5b0f4ec6d7eaca616eee2a2d01a78c12f336f1a14092f03755dd0496d4",
+    "config": {
+        "task": {
+            "path": "evals/tasks/small-molecule-properties",
+            "git_url": null,
+            "git_commit_id": null,
+            "name": null,
+            "ref": null,
+            "overwrite": false,
+            "download_dir": null,
+            "source": null
+        },
+        "trial_name": "small-molecule-properties__KEsFvo2",
+        "trials_dir": "jobs/2026-08-06__18-28-37",
+        "install_only": false,
+        "timeout_multiplier": 1.0,
+        "agent_timeout_multiplier": null,
+        "verifier_timeout_multiplier": null,
+        "agent_setup_timeout_multiplier": null,
+        "environment_build_timeout_multiplier": null,
+        "agent": {
+            "name": "aevom_eval.agent:AevomAgent",
+            "import_path": null,
+            "model_name": null,
+            "n_concurrent": null,
+            "concurrency_group": null,
+            "skills": [],
+            "override_timeout_sec": null,
+            "override_setup_timeout_sec": null,
+            "max_timeout_sec": null,
+            "resume_trajectory": false,
+            "load_trajectory": null,
+            "extra_allowed_hosts": [],
+            "kwargs": {},
+            "mcp_servers": []
+        },
+        "environment": {
+            "type": "docker",
+            "import_path": null,
+            "force_build": false,
+            "delete": true,
+            "cpu_enforcement_policy": "auto",
+            "memory_enforcement_policy": "auto",
+            "override_cpus": null,
+            "override_memory_mb": null,
+            "override_storage_mb": null,
+            "override_gpus": null,
+            "override_tpu": null,
+            "mounts": null,
+            "extra_docker_compose": [],
+            "kwargs": {},
+            "extra_allowed_hosts": []
+        },
+        "verifier": {
+            "override_timeout_sec": null,
+            "max_timeout_sec": null,
+            "import_path": "aevom_eval.verifier:AevomVerifier",
+            "disable": false
+        },
+        "artifacts": [],
+        "extra_instruction_paths": [],
+        "job_id": "aa8ca14c-53ce-4444-a1f7-858a5e5d0d3d"
+    },
+    "agent_info": {
+        "name": "aevom",
+        "version": "local",
+        "model_info": null
+    },
+    "agent_result": {
+        "n_input_tokens": null,
+        "n_cache_tokens": null,
+        "n_output_tokens": null,
+        "cost_usd": null,
+        "rollout_details": null,
+        "metadata": {
+            "driver_return_code": 0,
+            "api_base": "http://api:8000",
+            "model_name": null,
+            "session_id": "e0366c4e-071b-4d2e-911c-ee9ffdc5509d",
+            "aevom_model": null,
+            "duration_sec": 7.027,
+            "n_tool_calls": 2,
+            "tools_used": [
+                "get_pubchem_properties",
+                "search_pubchem"
+            ],
+            "n_failed_tool_calls": 0,
+            "n_artifacts": 0,
+            "answer_chars": 76,
+            "hit_iteration_limit": false,
+            "driver_errors": []
+        }
+    },
+    "verifier_result": {
+        "rewards": {
+            "tool_selection": 1.0,
+            "answer": 1.0,
+            "no_errors": 1.0,
+            "reward": 1.0
+        }
+    },
+    "exception_info": null,
+    "started_at": "2026-08-06T18:28:37.569250Z",
+    "finished_at": "2026-08-06T18:29:23.755921Z",
+    "environment_setup": {
+        "started_at": "2026-08-06T18:28:37.590036Z",
+        "finished_at": "2026-08-06T18:29:01.436318Z"
+    },
+    "agent_setup": {
+        "started_at": "2026-08-06T18:29:01.436371Z",
+        "finished_at": "2026-08-06T18:29:02.501084Z"
+    },
+    "agent_execution": {
+        "started_at": "2026-08-06T18:29:02.501205Z",
+        "finished_at": "2026-08-06T18:29:10.021333Z"
+    },
+    "verifier": {
+        "started_at": "2026-08-06T18:29:10.427971Z",
+        "finished_at": "2026-08-06T18:29:10.432151Z"
+    },
+    "step_results": null
+}

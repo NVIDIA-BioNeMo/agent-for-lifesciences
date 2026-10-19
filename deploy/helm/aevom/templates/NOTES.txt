@@ -1,0 +1,37 @@
+Aevom {{ .Chart.AppVersion }} installed as release {{ .Release.Name }} in namespace {{ .Release.Namespace }}.
+
+Images:  {{ .Values.image.registry }}/{api,rdkit,pyexec,vina}:{{ .Values.image.tag }}
+Model:   {{ .Values.config.AEVOM_MODEL }}
+
+Watch it come up (rdkit and vina are slow starters):
+
+    kubectl -n {{ .Release.Namespace }} get pods -w
+
+{{ if .Values.ingress.enabled -}}
+Then open http{{ if .Values.ingress.tls.enabled }}s{{ end }}://{{ .Values.ingress.host }}{{ .Values.ingress.path }}
+
+If it does not answer, check that an ingress controller is running for class
+{{ .Values.ingress.className }} and that {{ .Values.ingress.host }} resolves to it.
+{{- else -}}
+No ingress is configured, so reach the UI by forwarding the api Service:
+
+    kubectl -n {{ .Release.Namespace }} port-forward svc/aevom-api 8000:{{ .Values.api.service.port }}
+
+Then open http://localhost:8000
+{{- end }}
+
+Two things that are your responsibility, not the chart's:
+
+  - The Secrets. The release references {{ .Values.secrets.app.secretName }} (needs
+    POSTGRES_PASSWORD) and {{ .Values.secrets.nvidiaApiKey.secretName }}
+    {{- if .Values.secrets.nvinf.enabled }} and {{ .Values.secrets.nvinf.secretName }}{{ end }}.
+    Missing ones leave the api pod stuck in ContainerCreating.
+  - The API key has to match the model. {{ .Values.config.AEVOM_MODEL }} authenticates
+    against {{ if hasSuffix "-nvinf" .Values.config.AEVOM_MODEL }}inference-api.nvidia.com, which is NVIDIA-internal{{ else }}integrate.api.nvidia.com{{ end }}.
+
+{{ if not .Values.api.autoscaling.enabled -}}
+Autoscaling is off, so the api runs at a single replica.
+{{- else -}}
+The HPAs need metrics-server. Without it they report <unknown> and never scale,
+which is degraded but not broken -- everything stays at one replica.
+{{- end }}

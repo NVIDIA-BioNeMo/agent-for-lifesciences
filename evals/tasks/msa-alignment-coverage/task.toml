@@ -1,0 +1,110 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+schema_version = "1.3"
+
+[task]
+name = "aevom/msa-alignment-coverage"
+description = """
+Build an MSA for a real protein and quantify how well it covers the query.
+Exercises the MSA-Search NIM and the reason Aevom wraps it as a tool rather than
+leaving it to http_request: the alignment is ~108 KB of a3m, far too large to
+read into the conversation, so the analysis has to happen against the stored
+reference in python_execute. Answering by pasting the data is not merely
+discouraged here, it does not fit.
+"""
+keywords = ["aevom", "msa", "nim", "storage-pattern", "skills"]
+
+[environment]
+# `main` is the harness container, not part of the Aevom stack. It only needs a
+# stdlib Python to run the uploaded driver.
+docker_image = "python:3.12-slim"
+
+[agent]
+# One MSA search against the full ColabFold database set takes 30-60s, and the
+# analysis is another model round trip after it.
+timeout_sec = 1200.0
+
+[verifier]
+timeout_sec = 300.0
+
+# Graded by AevomVerifier (evals/aevom_eval/verifier.py). Only the dimensions
+# declared here are scored; see evals/aevom_eval/scoring.py.
+[metadata.expect]
+# The chain is the point: a sequence fetched by reference, an MSA built from that
+# reference, and an analysis that reads the alignment where it was stored.
+required_tool_sequence = ["fetch_protein_sequence", "msa_search", "python_execute"]
+# msa_search exists as a builtin precisely so the model does not hand-build the
+# health.api request the upstream skill prose describes. The skill is bound to
+# this tool (backend/api/skills/binding.py) and its Level 2 banner says to prefer
+# the tool; a run that reaches for http_request means that banner stopped working.
+forbidden_tools = ["http_request"]
+
+required_artifact_types = ["sequence", "msa"]
+min_artifacts = 2
+
+# Baselined live on 2026-08-08: PGK1 is 417 residues, the search returned 219
+# sequences (identical across three runs), and mean per-position coverage over
+# the 218 homologs was 0.777.
+#
+# The tolerances are wide for two reasons. Depth moves with the databases rather
+# than with Aevom: UniRef30 and the ColabFold EnvDB get re-released, and the
+# hosted search caps each database's contribution at roughly 100 hits, so it
+# drifts in steps. And coverage has several defensible readings -- per query
+# position over homologs, per homolog over the query, mean or median -- which is
+# why the band is set to accept them rather than one arbitrary convention. The
+# baseline reported a median of 93.3% where the reference mean was 77.7%, and
+# both are honest answers to the question.
+#
+# A value inside these bands still cannot be produced without having run the
+# search and measured the alignment.
+answer_numbers = [
+    { value = 219, tolerance = 80 },
+    { value = 78, tolerance = 18 },
+]
+answer_contains = ["PGK1"]
+# Long enough to have stated two measurements and a recommendation.
+answer_min_chars = 200
+
+# Calibrated from baselines rather than set to zero. Two things spend calls
+# honestly: the hosted MSA endpoint answered 429 Too Many Requests once during
+# calibration, and a first a3m parse often needs a second pass -- the format's
+# lowercase insertion columns are easy to get wrong once. The 2026-08-08 baseline
+# spent exactly one call this way.
+#
+# It spent three more on something that was not the model's fault: it sent
+# organism_id as the number 9606 where the schema declares a string, and the
+# Pydantic error named the type rather than the fix. That is now coerced in
+# api/graph/tools.py. If this budget starts binding again, read the trajectory
+# before raising it -- the last time it bound, the tool was at fault.
+max_failed_tool_calls = 3
+allow_iteration_limit = false
+max_driver_errors = 0
+
+[[metadata.expect.required_tool_arguments]]
+# By reference, not by pasting the 417-residue sequence back in as a literal.
+tool = "msa_search"
+arg = "sequence_ref"
+present = true
+example = "sequence_a1b2c3d4"
+
+[[metadata.expect.required_tool_arguments]]
+# The alignment has to be loaded in the sandbox rather than quoted into the code.
+# `aevom.load` on an msa_* reference returns the a3m as text; see
+# services/pyexec/app/aevom_client.py.
+tool = "python_execute"
+arg = "code"
+matches = "aevom\\.load"
+example = "a3m = aevom.load('msa_a1b2c3d4')\nprint(len(a3m))"

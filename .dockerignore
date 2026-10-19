@@ -1,0 +1,123 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# =============================================================================
+# Docker Build Context Exclusions
+# This file significantly speeds up builds by excluding unnecessary files
+# =============================================================================
+
+# Version control
+.git
+.gitignore
+.gitattributes
+
+# IDE and editor files
+.cursor
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# Documentation (not needed in containers)
+*.md
+!README.md
+# prompts.md is not documentation -- it is the system prompt, and
+# backend/api/prompts.py reads it at import time, so backend/Dockerfile copies it
+# into the image. Without this negation the blanket *.md above keeps it out of
+# the build context and the COPY fails.
+!prompts.md
+docs/
+
+# Build artifacts and caches
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+.eggs
+*.egg-info
+.mypy_cache
+.pytest_cache
+.ruff_cache
+.coverage
+htmlcov/
+
+# Virtualenvs. Nothing in this repo should have one -- the devcontainer and the
+# service images install their deps directly -- but keep them out of the context
+# so a stray one can never be shipped into a build.
+.venv
+venv
+
+# Host-built frontend bundle. The backend image builds this itself in its node
+# stage (backend/Dockerfile) and copies it from there.
+frontend/dist
+
+# Node modules (frontend has its own context, but backend uses root)
+node_modules
+.npm
+.pnpm-store
+
+# Environment files (secrets should be mounted, not copied)
+.env
+.env.*
+!.env.example
+
+# Local development files
+.version
+.build-stamps
+*.log
+*.tmp
+tmp/
+temp/
+
+# Training data (large files, not needed in containers)
+training/data/*.jsonl
+
+# Kubernetes configs and Helm chart (not needed in containers)
+k8s/
+deploy/
+# Except the python_execute sandbox policy, which backend/Dockerfile copies in:
+# the api sends it with every OpenShell sandbox it creates.
+!deploy/openshell/pyexec-policy.yaml
+
+# Scripts (some may be needed, but most aren't)
+scripts/*.sh
+
+# Test files
+tests/
+*_test.py
+test_*.py
+
+# Mac OS files
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Terraform/infrastructure
+*.tfstate
+*.tfstate.*
+.terraform/
+
+# The bionemo-agent-toolkit submodule ships a Harbor eval harness alongside each
+# NIM skill (Dockerfiles, PDB fixtures, ~1.2 MB for proteinmpnn alone). Only
+# SKILL.md and references/ are loaded, so keep the rest out of the image.
+third_party/bionemo-agent-toolkit/nim-skills/*/evals/

@@ -1,0 +1,19 @@
+[
+  {"id": "nim-msa-coverage",
+   "message": "I want to know whether an MSA of human PGK1 is good enough to use as evolutionary input for structure prediction. Fetch the PGK1 sequence, run an MSA search on it, then measure the alignment instead of judging it by eye. Report how many homologous sequences the alignment contains and the average fraction of the query's residue positions those homologs cover. The alignment is around a hundred kilobytes, so do not read it into the conversation -- analyse it where it is stored. Then say whether you would use it for structure prediction."},
+
+  {"id": "nim-fold-boltz2",
+   "message": "Predict the 3D structure of human ubiquitin using Boltz-2. Fetch its sequence first (UniProt), then fold it, and tell me the mean confidence (pLDDT or equivalent) of the prediction."},
+
+  {"id": "nim-fold-openfold3",
+   "message": "Predict the 3D structure of this peptide with OpenFold3 and report the mean confidence: MQIFVKTLTGKTITLEVEPSDTIENVKAKIQDKEGIPPDQQRLIFAGKQLEDGRTLSDYNIQKESTLHLVLRLRGG"},
+
+  {"id": "nim-binder-design",
+   "message": "Design a protein binder against MDM2. Use PDB entry 1YCR for the target; chain A is MDM2 and chain B is the p53 peptide it binds. I want a binder that competes with p53, so target MDM2 residues Leu54, Gly58 and Ile61 that line that pocket. Build a backbone of exactly 100 residues against that epitope, then design sequences for the binder you generated. Do not change MDM2's own sequence, and avoid cysteines. Report the length of the designed binder sequence and its design score."},
+
+  {"id": "nim-denovo-seq",
+   "message": "Design a small protein from scratch and tell me which parts of it the sequence design is least sure about. Generate a backbone of exactly 120 residues -- there is no starting structure, this one comes from nothing. Then design 16 candidate sequences for that backbone, with no cysteines. Alongside the sequences you will get a per-position amino-acid probability matrix; use it to find the five residue positions where the design was least confident, and report those positions together with the score of the best sequence. Say which way the score runs."},
+
+  {"id": "nim-boltz2-affinity",
+   "message": "Use Boltz-2 to predict the binding of imatinib to ABL1 kinase. Fetch the ABL1 kinase-domain sequence, provide imatinib as the ligand, run the Boltz-2 co-folding + affinity prediction, and report the predicted binding affinity and the complex confidence."}
+]

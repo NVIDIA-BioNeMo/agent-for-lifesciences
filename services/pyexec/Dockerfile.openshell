@@ -1,0 +1,51 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# pyexec as an OpenShell sandbox image (PYEXEC_MODE=openshell).
+#
+# Layers on the regular pyexec image so direct mode and training keep running the
+# image they always have. OpenShell ignores CMD: SandboxManager passes the uvicorn
+# command when it creates each sandbox.
+#
+#   docker build -f services/pyexec/Dockerfile.openshell -t aevom-pyexec-sandbox:latest services/pyexec
+
+ARG PYEXEC_IMAGE=aevom-pyexec:latest
+FROM ${PYEXEC_IMAGE}
+
+# iproute2: network-namespace tooling the Kubernetes runtime expects in the image.
+RUN apt-get update && apt-get install -y --no-install-recommends iproute2 \
+    && rm -rf /var/lib/apt/lists/*
+
+# OpenShell requires a non-root identity and a working directory that identity can
+# write. /app and site-packages stay root-owned, so sandboxed code cannot alter
+# pyexec itself or the libraries it imports. UID and GID 10001 are what the
+# OpenShell Kubernetes driver runs the workload as; any other owner leaves its
+# workspace-init container unable to read /sandbox.
+RUN groupadd --gid 10001 sandbox \
+    && useradd --uid 10001 --gid sandbox --no-create-home --home-dir /sandbox --shell /usr/sbin/nologin sandbox \
+    && install -d -o sandbox -g sandbox -m 0750 /sandbox
+
+# PYTHONPATH keeps the base image's RDKit entry (/opt/rdkit) in addition to /app,
+# which uvicorn needs now that the working directory is /sandbox.
+ENV PYTHONPATH=/app:/opt/rdkit/lib/python3.12/site-packages \
+    PYTHONDONTWRITEBYTECODE=1 \
+    HOME=/sandbox \
+    PYEXEC_WARMUP=1 \
+    PYEXEC_CONNECTION_CLOSE=1
+
+WORKDIR /sandbox
+USER sandbox
+
+CMD ["uvicorn", "app.main:app", "--app-dir", "/app", "--host", "127.0.0.1", "--port", "8000"]

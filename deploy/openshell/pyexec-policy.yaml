@@ -1,0 +1,106 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# OpenShell policy for python_execute sandboxes (one sandbox per chat session).
+#
+# Loaded by backend/api/sandbox/openshell_policy.py, which substitutes the
+# ${...} placeholders from the environment and sends the result with every
+# CreateSandbox call. Schema: OpenShell docs, how-it-works/policies/schema.
+#
+# Startup sections (filesystem_policy, landlock, process) are fixed for the life
+# of a sandbox. network_policies is live and could be tightened on running
+# sandboxes, but the backend applies it at create time only.
+#
+# Everything not listed is denied: other Aevom services (postgres, redis, rdkit,
+# vina, phoenix), the cloud metadata address, and the rest of the internet.
+
+version: 1
+
+filesystem_policy:
+  include_workdir: false
+  # Code and libraries are readable but not writable, so sandboxed code cannot
+  # patch pyexec or a library it later imports. /opt holds the RDKit build.
+  read_only:
+    - /usr
+    - /lib
+    - /lib64
+    - /bin
+    - /etc
+    - /opt
+    - /app
+    - /proc
+    - /dev/urandom
+  # Scratch space only. /sandbox is the workload's home and working directory.
+  read_write:
+    - /tmp
+    - /sandbox
+    - /dev/null
+
+landlock:
+  # Refuse to start rather than run without filesystem rules.
+  compatibility: hard_requirement
+
+process:
+  run_as_user: sandbox
+  run_as_group: sandbox
+
+network_policies:
+  # Callbacks from the in-sandbox `aevom` client to the backend's sandbox API.
+  # The X-Sandbox-Session capability token is still checked by the backend.
+  aevom_backend:
+    name: aevom-sandbox-callbacks
+    endpoints:
+      - host: ${OPENSHELL_BACKEND_HOST}
+        port: ${OPENSHELL_BACKEND_PORT}
+        protocol: rest
+        enforcement: enforce
+        rules:
+          - allow: { method: GET, path: /api/sandbox/data/** }
+          - allow: { method: POST, path: /api/sandbox/store }
+          - allow: { method: POST, path: /api/sandbox/selection }
+          - allow: { method: POST, path: /api/sandbox/visualize }
+          - allow: { method: POST, path: /api/sandbox/probe-grid }
+          - allow: { method: POST, path: /api/sandbox/constrained-pose }
+    binaries:
+      - { path: /usr/local/bin/python3* }
+
+  # PubChem PUG-REST, used by pubchempy (importable by sandboxed code) and the
+  # aevom.search_pubchem / get_pubchem_properties / download_pubchem_sdf helpers.
+  # pubchempy switches to POST for long identifier lists.
+  pubchem:
+    name: pubchem-pug-rest
+    endpoints:
+      - host: pubchem.ncbi.nlm.nih.gov
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        rules:
+          - allow: { method: GET, path: /rest/pug/** }
+          - allow: { method: POST, path: /rest/pug/** }
+    binaries:
+      - { path: /usr/local/bin/python3* }
+
+  # RCSB chemical component search, used by aevom.lookup_ccd_code.
+  rcsb_search:
+    name: rcsb-search
+    endpoints:
+      - host: search.rcsb.org
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        rules:
+          - allow: { method: POST, path: /rcsbsearch/v2/query }
+    binaries:
+      - { path: /usr/local/bin/python3* }

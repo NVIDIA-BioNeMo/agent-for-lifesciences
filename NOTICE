@@ -1,0 +1,271 @@
+Aevom
+Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+
+Licensed under the Apache License, Version 2.0. See LICENSE.
+
+Aevom includes third-party software and content, each under its own license.
+Components whose source is copied into this repository or its images are
+attributed in full below. Packages that Aevom installs as dependencies are
+listed by name, version and license in the dependency disclosure at the end.
+
+=======================================================================
+BioNeMo Agent Toolkit
+=======================================================================
+
+  Path:      third_party/bionemo-agent-toolkit (git submodule)
+  Upstream:  https://github.com/NVIDIA-BioNeMo/bionemo-agent-toolkit
+  Pinned:    23d483511e0b42221bdafd7259ff43c05220ee86 (main, 2026-08-07)
+  License:   Apache-2.0 and CC-BY-4.0
+
+  BioNeMo Agent Toolkit
+  Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES.
+  Licensed under CC-BY-4.0 (https://creativecommons.org/licenses/by/4.0/)
+  Source: https://github.com/NVIDIA-BioNeMo/bionemo-agent-toolkit
+
+The toolkit's source code is licensed under the Apache License, Version 2.0.
+Its skills, documentation and content files are additionally licensed under
+the Creative Commons Attribution 4.0 International License. The skill files
+Aevom uses declare "license: Apache-2.0 AND CC-BY-4.0" in their metadata.
+
+The nim-skills/ directory, less its per-skill evals/ harnesses, is copied
+unmodified into the backend image as /app/nim-skills, alongside this file at
+/app/NOTICE. When Aevom presents a skill to the model, it prepends a
+description of the Aevom tool that serves that skill's endpoint; the upstream
+text follows unchanged.
+
+The full license texts and the toolkit's own notice are in the submodule:
+
+  third_party/bionemo-agent-toolkit/LICENSE
+  third_party/bionemo-agent-toolkit/LICENSE-APACHE-2.0
+  third_party/bionemo-agent-toolkit/LICENSE-CC-BY-4.0
+  third_party/bionemo-agent-toolkit/NOTICE
+
+Aevom applies third_party/patches/bionemo-agent-toolkit-prune-orphans-copyright.patch
+after fetching the pinned toolkit. This changes only the NVIDIA copyright
+entity in .github/scripts/prune-orphans.sh to NVIDIA CORPORATION & AFFILIATES.
+The script's Apache-2.0 identifier and upstream provenance are preserved.
+
+The rest of the submodule is present in a source checkout but is not copied
+into Aevom's images. It includes the science-skills code attributed below.
+
+=======================================================================
+science-skills (vendored within the BioNeMo Agent Toolkit)
+=======================================================================
+
+  Paths:     third_party/bionemo-agent-toolkit/plugins/bionemo-agent-toolkit/
+               skills/complexa-binder-design/vendor/science-skills/
+             third_party/bionemo-agent-toolkit/workflows/
+               generative_protein_binder_design/complexa-binder-design/
+               vendor/science-skills/
+  Upstream:  https://github.com/google-deepmind/science-skills
+  Retrieved: 2026-06-11, from main, by the BioNeMo Agent Toolkit
+  License:   Apache-2.0
+
+  Copyright 2026 Google LLC
+  Licensed under the Apache License, Version 2.0
+
+The two paths hold identical copies of the alphafold_database_fetch_and_analyze
+and uniprot_database skills. fetch_structure.py and uniprot_tools.py were
+modified to replace an internal HTTP client with a Python standard-library
+shim; each modified file says so in a "MODIFIED for bionemo-nim-skills" note,
+and VENDOR.md in either directory describes the changes. The other files are
+unmodified. The license text is in LICENSE in either directory. These files are
+not copied into Aevom's images.
+
+=======================================================================
+Dependency disclosure
+=======================================================================
+
+Aevom installs further third-party packages rather than copying their source.
+Each remains under its own license, which is not reproduced here.
+
+The tables below list the packages Aevom names directly in its requirements
+files, package.json dependencies and Dockerfiles, with the version installed
+in Aevom's images. Packages that these depend on are not listed, nor are
+build-only and test-only tools. Image names are abbreviated:
+
+  api        backend/Dockerfile, which also bundles the frontend
+  rdkit, pyexec, vina, vina-gpu, admet, plip, molstar
+             the services/ image of the same name (molstar is
+             services/molstar-headless)
+  training   the training images built from training/slurm/container/
+  worker     the GPU conformer worker at /opt/aevom-conformer-worker in the
+             vina-gpu and training images
+
+The training images are built on NeMo-RL, whose own components are not
+listed here. They also install backend/requirements.txt, so they contain the
+api packages, resolved against NeMo-RL's environment.
+
+Python packages
+
+  Package                 Version     License         Images
+  admet-ai                2.0.1       MIT             admet
+  aiosmtplib              5.1.3       MIT             api
+  alembic                 1.20.0      MIT             api
+  anthropic               0.125.0     MIT             api
+  arize-phoenix           13.0.3      Elastic-2.0     api (see below)
+  arize-phoenix-evals     2.13.0      Elastic-2.0     api (see below)
+  arize-phoenix-otel      0.17.2      Apache-2.0      api
+  asyncpg                 0.32.0      Apache-2.0      api
+  biopython               1.88        Biopython       api, pyexec, training
+                                      License
+                                      Agreement
+  biotite                 1.8.0       BSD-3-Clause    pyexec
+  datamol                 0.13.0      Apache-2.0      rdkit, pyexec
+  fakeredis               2.39.0      BSD-3-Clause    training
+  fastapi                 0.143.3     MIT             api, rdkit, pyexec, vina
+  fastapi                 0.143.0     MIT             vina-gpu
+  fastapi                 0.115.6     MIT             admet, plip
+  gemmi                   0.7.5       MPL-2.0         vina, vina-gpu, plip,
+                                                      training (see below)
+  graphql-core            3.2.13      MIT             api
+  httpx                   0.28.1      BSD-3-Clause    api, vina, vina-gpu
+  Jinja2                  3.1.6       BSD-3-Clause    api
+  langchain-core          1.6.12      MIT             api
+  langchain-openai        1.7.2       MIT             api
+  langgraph               1.2.16      MIT             api
+  loguru                  0.7.3       MIT             rdkit, pyexec
+  meeko                   0.8.0       LGPL-2.1        vina, vina-gpu, training
+                                                      (see below)
+  networkx                3.7         BSD-3-Clause    rdkit, pyexec
+  numpy                   2.5.3       BSD-3-Clause    rdkit, pyexec
+                                      AND 0BSD AND
+                                      MIT AND Zlib
+                                      AND CC0-1.0
+  numpy                   2.4.6       BSD-3-Clause    api, vina, vina-gpu
+                                      AND 0BSD AND
+                                      MIT AND Zlib
+                                      AND CC0-1.0
+  nvMolKit                0.6.0       Apache-2.0      worker
+  openai                  3.32.0      Apache-2.0      api
+  openbabel-wheel         3.1.1.23    GPL-2.0         pyexec, vina, vina-gpu,
+                                                      training (see below)
+  openshell               0.1.2       Apache-2.0      api
+  opentelemetry-api       1.45.1      Apache-2.0      api
+  opentelemetry-exporter-otlp-proto-grpc
+                          1.45.1      Apache-2.0      api
+  opentelemetry-sdk       1.45.1      Apache-2.0      api
+  pillow                  12.3.0      MIT-CMU         rdkit, pyexec
+  plip                    3.0.1       GPL-2.0-only    plip (see below)
+  PubChemPy               1.0.5       MIT             api, pyexec, training
+  pydantic                2.14.1      MIT             api, rdkit, pyexec, vina
+  pydantic                2.14.0      MIT             vina-gpu
+  pydantic                2.10.4      MIT             admet, plip
+  python                  3.11.17     PSF-2.0         worker
+  rdkit                   2026.9.1    BSD-3-Clause    vina, vina-gpu
+  rdkit                   2026.3.6    BSD-3-Clause    training
+  rdkit                   2025.9.5    BSD-3-Clause    worker
+  redis                   8.1.0       MIT             api
+  requests                2.34.2      Apache-2.0      pyexec
+  RestrictedPython        8.5         ZPL-2.1         pyexec, training
+  safe-mol                0.1.14      Apache-2.0      rdkit, pyexec (modified,
+                                                      see below)
+  scikit-learn            1.9.1       BSD-3-Clause    pyexec
+  scipy                   1.18.1      BSD-3-Clause    pyexec
+  scipy                   1.17.1      BSD-3-Clause    vina, vina-gpu
+  SQLAlchemy              2.1.5       MIT             api
+  sse-starlette           3.5.0       BSD-3-Clause    api
+  torch                   2.10.0+cpu  BSD-3-Clause    worker
+  uvicorn                 0.54.0      BSD-3-Clause    api, rdkit, pyexec,
+                                                      vina, vina-gpu
+  uvicorn                 0.34.0      BSD-3-Clause    admet, plip
+  vina                    1.2.7       Apache-2.0      training (NGC base only)
+
+JavaScript packages
+
+  Package                 Version     License         Images
+  express                 4.22.3      MIT             molstar, training
+  highlight.js            11.11.1     BSD-3-Clause    api
+  jszip                   3.10.1      MIT             api (see below)
+  molstar                 4.18.0      MIT             api, molstar, training
+  react                   18.3.1      MIT             api
+  react-dom               18.3.1      MIT             api
+  react-markdown          9.1.0       MIT             api
+  react-resizable-panels  4.7.2       MIT             api
+  rehype-highlight        7.0.2       MIT             api
+  remark-gfm              4.0.1       MIT             api
+
+Binaries and libraries built or downloaded by the Dockerfiles
+
+  Package                 Version     License         Images
+  AutoDock Vina           1.2.5       Apache-2.0      vina, vina-gpu (release
+                                                      binary)
+  Boost                   1.90.0      BSL-1.0         rdkit, pyexec (built
+                                                      from source)
+  Eigen                   5.0.1       MPL-2.0         worker (compiled into
+                                                      nvMolKit, see below)
+  RDKit                   2025.09.3   BSD-3-Clause    rdkit, pyexec (built
+                                                      from source)
+  Uni-Dock                1.2.0       Apache-2.0      vina-gpu (built from
+                                                      source)
+  Uni-Dock                1.1.0       Apache-2.0      training (release
+                                                      binary)
+
+Published examples
+
+examples/storage-access is not built into any image. Its requirements.txt
+installs pandas into the user's own Python environment, so pandas is listed
+with the minimum version that file declares.
+
+  Package                 Version     License         Used by
+  pandas                  >=2.0.0     BSD-3-Clause    examples/storage-access
+
+jszip is offered under MIT OR GPL-3.0-or-later. Aevom uses it under MIT.
+
+The rdkit and pyexec images replace safe-mol's safe/__init__.py with
+services/rdkit/vendor/safe_init_lite.py, which says so in its header. The
+upstream file is kept beside it as safe/_init_full.py.
+
+-----------------------------------------------------------------------
+Packages with terms beyond attribution
+-----------------------------------------------------------------------
+
+Arize Phoenix (arize-phoenix, arize-phoenix-evals): Elastic License 2.0.
+  The api image includes them as Python libraries, and the Helm chart and
+  Compose files run the upstream arizephoenix/phoenix:version-13.0.3 image.
+  Elastic License 2.0 is not an open-source license. It does not permit
+  providing the software to third parties as a hosted or managed service
+  that gives them access to a substantial set of its features, circumventing
+  its license-key functionality, or removing its licensing notices.
+
+Open Babel (openbabel-wheel) and PLIP: GPL-2.0.
+  Both are installed unmodified from PyPI, Open Babel in the pyexec, vina,
+  vina-gpu and training images and PLIP in the plip image. GPL-2.0 requires
+  copies of them to be accompanied by the license text and by the
+  corresponding source code or a written offer for it. Source:
+  https://github.com/openbabel/openbabel and https://github.com/pharmai/plip
+
+Meeko: LGPL-2.1.
+  Installed unmodified from PyPI in the vina, vina-gpu and training images,
+  where it remains a separate, replaceable Python package. Source:
+  https://github.com/forlilab/Meeko
+
+gemmi and Eigen: MPL-2.0.
+  gemmi is installed unmodified from PyPI in the vina, vina-gpu, plip and
+  training images. Eigen is a header-only library compiled, unmodified, into
+  nvMolKit in the conformer worker. MPL-2.0 applies file by file, and
+  distributing either in executable form requires telling recipients where
+  to obtain the source: https://github.com/project-gemmi/gemmi and
+  https://gitlab.com/libeigen/eigen
+
+-----------------------------------------------------------------------
+Software downloaded at install time
+-----------------------------------------------------------------------
+
+Building and deploying Aevom downloads further third-party software: the
+packages above and the packages they depend on, the base container images,
+and the Postgres, Redis and Phoenix images that the Helm chart and Compose
+files run.
+
+NOTICE AND DISCLAIMER: This software automatically retrieves, accesses or
+interacts with external materials. Those retrieved materials are not
+distributed with this software and are governed solely by separate terms,
+conditions and licenses. You are solely responsible for finding, reviewing
+and complying with all applicable terms, conditions, and licenses, and for
+verifying the security, integrity and suitability of any retrieved materials
+for your specific use case. This software is provided "AS IS", without
+warranty of any kind. The author makes no representations or warranties
+regarding any retrieved materials, and assumes no liability for any losses,
+damages, liabilities or legal consequences from your use or inability to use
+this software or any retrieved materials. Use this software and the retrieved
+materials at your own risk.

@@ -1,0 +1,77 @@
+{#
+SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-License-Identifier: Apache-2.0
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+-#}
+{# DeepSeek-v3.2 model template.
+
+Extends the base template with DeepSeek-specific formatting.
+DeepSeek-v3.2 is a powerful reasoning model that excels at exploring
+alternatives and explaining trade-offs.
+
+Higher temperature (1.0) allows for more exploratory reasoning.
+The model supports extended thinking via the "thinking" parameter.
+#}
+{% extends "base.jinja2" %}
+
+{# DeepSeek uses the standard system prompt #}
+{% block system_intro %}
+{{ system_prompt }}
+{% endblock %}
+
+{# DeepSeek reasoning instructions - exploratory and thorough #}
+{% block reasoning_instructions %}
+{% if supports_reasoning %}
+
+## Reasoning Mode
+
+Extended thinking is enabled. You may:
+- Explore multiple approaches before settling on a solution
+- Consider trade-offs and alternatives
+- Provide detailed reasoning for complex decisions
+- Question assumptions when appropriate
+
+Take the time needed to reason thoroughly through problems.
+{% endif %}
+{% endblock %}
+
+{# DeepSeek tool usage - thorough approach #}
+{% block tool_instructions %}
+{% if tools %}
+
+## Available Tools
+
+You have access to computational chemistry tools:
+{% for tool in tools %}
+- **{{ tool.function.name }}**: {{ tool.function.description }}
+{% endfor %}
+
+When using tools:
+- Use the function calling API to invoke them
+- Always use exact reference IDs from previous tool outputs
+- Consider whether a tool is the best approach for the task
+- Verify results match expectations before proceeding
+{% endif %}
+{% endblock %}
+
+{# DeepSeek-specific behavioral tuning - exploratory #}
+{% block model_specific %}
+
+## Response Approach
+
+- Explore the problem space thoroughly
+- Explain your reasoning process
+- Consider edge cases and potential issues
+- Provide clear, well-structured responses
+{% endblock %}

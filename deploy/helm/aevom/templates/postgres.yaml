@@ -1,0 +1,115 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+{{- if .Values.postgres.enabled }}
+{{/*
+Single-instance Postgres on a ReadWriteOnce claim. Fine for the workload Aevom
+puts on it, and deliberately not an operator or an HA setup: pointing the api at
+a managed database instead is one value change (apiEnv.DATABASE_URL) plus
+postgres.enabled=false.
+*/}}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-data
+  labels:
+    {{- include "aevom.labels" (dict "root" $ "name" "postgres") | nindent 4 }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+{{- with .Values.persistence.storageClass }}
+  # Omitted entirely when unset, which is what makes the cluster's default class
+  # apply -- an empty string would mean "no storage class at all".
+  storageClassName: {{ . }}
+{{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.persistence.postgres.size }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+  labels:
+    {{- include "aevom.labels" (dict "root" $ "name" "postgres") | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  strategy:
+    # Recreate, not RollingUpdate: a second pod cannot attach a ReadWriteOnce
+    # volume, so a rolling update would deadlock waiting for the new pod that is
+    # waiting for the old pod's volume.
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+        - name: postgres
+          image: {{ .Values.postgres.image }}
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_DB
+              value: "aevom"
+            - name: POSTGRES_USER
+              value: "aevom"
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.app.secretName }}
+                  key: POSTGRES_PASSWORD
+            # A subdirectory, because the volume root is not empty on most
+            # storage classes (lost+found) and initdb refuses a non-empty dir.
+            - name: PGDATA
+              value: "/var/lib/postgresql/data/pgdata"
+          volumeMounts:
+            - name: postgres-data
+              mountPath: /var/lib/postgresql/data
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-U", "aevom", "-d", "aevom"]
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "aevom", "-d", "aevom"]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+          resources:
+            {{- toYaml .Values.postgres.resources | nindent 12 }}
+      volumes:
+        - name: postgres-data
+          persistentVolumeClaim:
+            claimName: postgres-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  labels:
+    {{- include "aevom.labels" (dict "root" $ "name" "postgres") | nindent 4 }}
+spec:
+  selector:
+    app: postgres
+  ports:
+    - port: 5432
+      targetPort: 5432
+{{- end }}

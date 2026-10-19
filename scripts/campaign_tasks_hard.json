@@ -1,0 +1,19 @@
+[
+  {"id": "admet-inline",
+   "message": "Predict the ADMET properties (hERG, solubility, BBB) for these SMILES directly, without downloading anything: CCO, c1ccccc1, CC(=O)Oc1ccccc1C(=O)O. Use the ADMET tool with inline SMILES."},
+
+  {"id": "error-recovery-bogus",
+   "message": "Get the molecular properties of the compound named 'flibberdygibbet-42'. If it does not exist, tell me clearly rather than inventing data."},
+
+  {"id": "structure-query-neighbors",
+   "message": "Fetch and clean PDB 1CRN, then select all atoms within 5 Angstroms of residue TYR44 and tell me how many atoms and which residues are in that shell."},
+
+  {"id": "probe-grid-pocket",
+   "message": "Fetch and clean PDB 1STP (streptavidin-biotin). Then compute an interaction probe grid around the biotin binding pocket and report the strongest hydrophobic and hydrogen-bond-donor hotspots with their coordinates."},
+
+  {"id": "vina-dock-biotin-site",
+   "message": "Dock ibuprofen into streptavidin (PDB 1STP) in the biotin binding site. Fetch the receptor, get a 3D ligand, define a reasonable docking box around the biotin site, run AutoDock Vina, and report the best binding affinity in kcal/mol."},
+
+  {"id": "genmol-analogs-gates",
+   "message": "Using the generative molecule tool, generate 5 novel analogs based on the aspirin scaffold, then run drug-likeness gates on the generated molecules and tell me which pass."}
+]

@@ -1,0 +1,66 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+schema_version = "1.3"
+
+[task]
+name = "aevom/structure-query-neighbors"
+description = """
+Find the residues surrounding a given residue in a protein structure, using the
+viewer's MolQL selection rather than hand-rolled geometry.
+
+This is the regression test for the browser bridge. `structure_query` does not
+complete inside the backend: it emits an SSE event, registers a pending op, and
+blocks until a client POSTs the selection to /api/selection. Before
+evals/aevom_eval/driver/molstar_bridge.py existed, every call here hit the 10s
+timeout and the model fell back to reimplementing the neighbour search in
+`python_execute` -- a correct answer arrived at by a path production users do not
+take. The task fails if that happens again.
+"""
+keywords = ["aevom", "molql", "structure-query", "viewer"]
+
+[environment]
+docker_image = "python:3.12-slim"
+
+[agent]
+timeout_sec = 1200.0
+
+[verifier]
+timeout_sec = 300.0
+
+[metadata.expect]
+required_tools = ["fetch_and_clean_pdb", "structure_query"]
+# The load-bearing assertion: a viewer query that actually came back with atoms.
+# Asserting the tool was merely *called* would have passed before the bridge.
+structure_query_must_succeed = true
+required_artifact_types = ["selection"]
+# 1CRN GLY A20 has six neighbours within 5A -- CYS16, ARG17, LEU18, PRO19, THR21,
+# PRO22 -- so seven residues including itself. A baseline run's
+# include-surroundings query returned exactly 50 atoms in 7 residues and the model
+# named all of them.
+#
+# There is deliberately no min_selection_residues here even though the scorer
+# offers one: it takes the largest successful selection, which a broad
+# `(sel.atom.all)` probe satisfies on its own. structure_query_must_succeed
+# already proves the bridge resolved, and these names prove the right answer.
+answer_contains = ["CYS", "ARG", "LEU", "PRO", "GLY", "THR"]
+# Calibrated from a baseline, which spent five python_execute calls on its own
+# NameErrors and on an augmented assignment the sandbox rejects, while still
+# answering from the viewer selection. The queries the model fires before loading
+# the structure come back as `no_structure_loaded` from the bridge, which is a
+# bridge event rather than a failed tool call.
+max_failed_tool_calls = 8
+allow_iteration_limit = false
+max_driver_errors = 0

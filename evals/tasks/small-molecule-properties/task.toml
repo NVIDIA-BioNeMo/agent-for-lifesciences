@@ -1,0 +1,54 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+schema_version = "1.3"
+
+[task]
+name = "aevom/small-molecule-properties"
+description = """
+Look up a small molecule by name and report its molecular weight. The simplest
+end-to-end path through Aevom: a PubChem search chained into a property lookup,
+with the answer stated in text.
+"""
+keywords = ["aevom", "pubchem", "tool-chaining"]
+
+[environment]
+# `main` is the harness container, not part of the Aevom stack. It only needs a
+# stdlib Python to run the uploaded driver.
+docker_image = "python:3.12-slim"
+
+[agent]
+timeout_sec = 900.0
+
+[verifier]
+timeout_sec = 300.0
+
+# Graded by AevomVerifier (evals/aevom_eval/verifier.py). Only the dimensions
+# declared here are scored; see evals/aevom_eval/scoring.py.
+[metadata.expect]
+# The chained pair is the point of the task: a search that yields a CID, then a
+# property lookup keyed by it.
+required_tool_sequence = ["search_pubchem", "get_pubchem_properties"]
+# Numeric, not substring: "194.2" is a correct rounding of caffeine's molecular
+# weight and must pass, while an unrelated "1194.19" must not.
+answer_numbers = [{ value = 194.19, tolerance = 0.06 }]
+answer_contains = ["caffeine"]
+# Not zero, though the happy path needs no retries. PubChem returns 503
+# PUGREST.ServerBusy under load, and a baseline run burned five calls to it
+# before succeeding. Recovering from that is correct behaviour, not a defect, so
+# the budget is calibrated from the baseline with headroom.
+max_failed_tool_calls = 6
+allow_iteration_limit = false
+max_driver_errors = 0

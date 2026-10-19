@@ -1,0 +1,84 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+{{- if .Values.rdkit.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rdkit
+  labels:
+    {{- include "aevom.labels" (dict "root" $ "name" "rdkit") | nindent 4 }}
+spec:
+  {{- if not .Values.rdkit.autoscaling.enabled }}
+  replicas: 1
+  {{- end }}
+  selector:
+    matchLabels:
+      app: rdkit
+  template:
+    metadata:
+      labels:
+        app: rdkit
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: rdkit
+          image: {{ include "aevom.image" (dict "root" $ "component" "rdkit") }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: 8000
+          env:
+            - name: LOG_LEVEL
+              valueFrom:
+                configMapKeyRef:
+                  name: aevom-config
+                  key: LOG_LEVEL
+          # No volumes. Depictions are returned inline as bytes and stored as
+          # `png` artifacts by the api -- with an HPA in front of this
+          # Deployment, a PNG on pod-local disk is unreadable by every other
+          # replica.
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 60
+            periodSeconds: 10
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 30
+            periodSeconds: 5
+            timeoutSeconds: 3
+          resources:
+            {{- toYaml .Values.rdkit.resources | nindent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rdkit
+  labels:
+    {{- include "aevom.labels" (dict "root" $ "name" "rdkit") | nindent 4 }}
+spec:
+  selector:
+    app: rdkit
+  ports:
+    - port: 8000
+      targetPort: 8000
+{{- end }}

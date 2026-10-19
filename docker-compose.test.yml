@@ -1,0 +1,162 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Test configuration: runs each Python pytest suite inside the container image
+# that already ships its dependencies. Driven by `make test` / scripts/run-tests.sh.
+#
+# All services live under the "test" profile so a normal `docker compose up`
+# never starts them. They are invoked one at a time with `docker compose run`.
+#
+# Bind mounts use ${HOST_PROJECT_PATH} because docker-outside-of-docker resolves
+# mount sources against the host daemon, not the devcontainer filesystem.
+#
+# pytest (and a couple of test-only extras) are installed at container runtime
+# rather than baked into the images, so production image contents are unchanged.
+#
+# Its own project name keeps `make test` off the app stack's network: sharing
+# the project would replace aevom_default and take the backend's pinned
+# address, the only one the OpenShell sandbox policy lets callbacks reach.
+
+name: aevom-test
+
+services:
+  # Builds aevom-rdkit:latest, which both rdkit-tests and the pyexec image use.
+  rdkit:
+    build:
+      context: ./services/rdkit
+      dockerfile: Dockerfile
+    image: aevom-rdkit:latest
+    profiles: ["test"]
+
+  # The RDKit image is where safe-mol is installed (with a torch-free __init__
+  # shim), so the SAFE conversion suite has to run here rather than in pyexec.
+  rdkit-tests:
+    image: aevom-rdkit:latest
+    profiles: ["test"]
+    working_dir: /app
+    entrypoint: ["sh", "-c"]
+    command:
+      - >-
+        pip install -q pytest httpx &&
+        python -m pytest tests -v --tb=short
+    volumes:
+      - ${HOST_PROJECT_PATH:-.}/services/rdkit:/app
+
+  backend-tests:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      args:
+        VERSION: ${VERSION:-0.0.0-dev}
+    profiles: ["test"]
+    working_dir: /app
+    entrypoint: ["sh", "-c"]
+    command:
+      - >-
+        pip install -q pytest pytest-asyncio pyyaml &&
+        python -m pytest api/tests api/tools/tests api/training/tests -v --tb=short
+    volumes:
+      - ${HOST_PROJECT_PATH:-.}/backend/api:/app/api
+      # Curated skills live beside api/ in the image; mount them so the builtin
+      # registry test sees the working tree rather than the baked-in copy.
+      - ${HOST_PROJECT_PATH:-.}/backend/skills:/app/skills:ro
+      # test_model_config.py and test_eval_compose_parity.py read deployment
+      # config from the repo root, which they locate relative to their own file.
+      # In the container that resolves to /, so mount those paths there. The
+      # image itself carries only backend/, by design.
+      - ${HOST_PROJECT_PATH:-.}/deploy:/deploy:ro
+      - ${HOST_PROJECT_PATH:-.}/docker-compose.yml:/docker-compose.yml:ro
+      - ${HOST_PROJECT_PATH:-.}/docker-compose.eval.yml:/docker-compose.eval.yml:ro
+
+  vina-tests:
+    build:
+      context: ./services/vina
+      dockerfile: Dockerfile
+      target: cpu-final
+    image: aevom-vina:latest
+    profiles: ["test"]
+    working_dir: /app
+    entrypoint: ["sh", "-c"]
+    command:
+      - >-
+        pip install -q pytest &&
+        python -m pytest tests -v --tb=short
+    volumes:
+      - ${HOST_PROJECT_PATH:-.}/services/vina:/app
+
+  # Most of the ADMET suite is standard library only, but one file compares the
+  # catalog against the one shipped inside the admet-ai package, so it has to run
+  # in the service image. That file skips elsewhere.
+  admet-tests:
+    build:
+      context: ./services/admet
+      dockerfile: Dockerfile
+    image: aevom-admet:latest
+    profiles: ["test"]
+    working_dir: /app
+    entrypoint: ["sh", "-c"]
+    command:
+      - >-
+        pip install -q pytest httpx &&
+        python -m pytest tests -v --tb=short
+    volumes:
+      - ${HOST_PROJECT_PATH:-.}/services/admet:/app
+
+  # PLIP and OpenBabel are only in this image, and the fixture is a real
+  # binding site, so the whole suite has to run here.
+  plip-tests:
+    build:
+      context: ./services/plip
+      dockerfile: Dockerfile
+    image: aevom-plip:latest
+    profiles: ["test"]
+    working_dir: /app
+    entrypoint: ["sh", "-c"]
+    command:
+      - >-
+        pip install -q pytest httpx &&
+        python -m pytest tests -v --tb=short
+    volumes:
+      - ${HOST_PROJECT_PATH:-.}/services/plip:/app
+
+  pyexec-tests:
+    build:
+      context: ./services/pyexec
+      dockerfile: Dockerfile
+    profiles: ["test"]
+    working_dir: /app
+    entrypoint: ["sh", "-c"]
+    command:
+      - >-
+        pip install -q pytest httpx &&
+        python -m pytest tests -v --tb=short
+    volumes:
+      - ${HOST_PROJECT_PATH:-.}/services/pyexec:/app
+
+  # NeMo-Gym suite. Runs in the aevom-training image (built separately via
+  # training/slurm/container/build_from_source.sh) which bakes in nemo_gym, ray,
+  # responses_api_agents, the backend deps, the chemistry stack and fakeredis.
+  # The runner only invokes this when aevom-training:latest is available.
+  training-tests:
+    image: aevom-training:latest
+    profiles: ["test"]
+    working_dir: /aevom
+    entrypoint: ["sh", "-c"]
+    command:
+      - >-
+        pip install -q pytest pytest-asyncio &&
+        python -m pytest training/tests -v --tb=short
+    volumes:
+      - ${HOST_PROJECT_PATH:-.}:/aevom

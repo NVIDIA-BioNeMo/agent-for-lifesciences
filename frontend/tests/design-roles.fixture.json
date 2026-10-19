@@ -1,0 +1,816 @@
+{
+  "default_engine": "rfd4",
+  "engines": [
+    {
+      "key": "rfd4",
+      "label": "RFD4-Proteina",
+      "note": "Takes a condition spec: every role is expressed directly, at atom level.",
+      "numbering": "label",
+      "structure_format": "mmcif"
+    },
+    {
+      "key": "rfdiffusion1",
+      "label": "RFdiffusion",
+      "note": "Takes a contig string and hotspot residues. Atom-level roles, chemistry and secondary structure are not available; hotspots are whole residues.",
+      "numbering": "author",
+      "structure_format": "pdb"
+    }
+  ],
+  "roles": [
+    {
+      "annotation": "C_HOT",
+      "atom_rule": null,
+      "colour": "#ff8a1f",
+      "engines": {
+        "rfd4": {
+          "note": "",
+          "support": "native"
+        },
+        "rfdiffusion1": {
+          "note": "RFdiffusion takes whole residues; chosen atoms are widened to their residue.",
+          "support": "residue"
+        }
+      },
+      "granularity": "either",
+      "group": "primary",
+      "inside_keep": true,
+      "key": "hotspot",
+      "label": "Hotspot",
+      "tooltip": "Hotspot (RFD4 C_HOT): the binder should touch these.",
+      "value_kind": "none",
+      "variants": []
+    },
+    {
+      "annotation": "contig",
+      "atom_rule": null,
+      "colour": "#3b82f6",
+      "engines": {
+        "rfd4": {
+          "note": "",
+          "support": "native"
+        },
+        "rfdiffusion1": {
+          "note": "A contig segment.",
+          "support": "native"
+        }
+      },
+      "granularity": "residue",
+      "group": "primary",
+      "inside_keep": false,
+      "key": "keep",
+      "label": "Keep",
+      "tooltip": "Keep (RFD4 contig, preserved segment): carry these residues into the design; everything not kept is dropped.",
+      "value_kind": "layout",
+      "variants": []
+    },
+    {
+      "annotation": "C_CRD",
+      "atom_rule": null,
+      "colour": "#8b5cf6",
+      "engines": {
+        "rfd4": {
+          "note": "",
+          "support": "native"
+        },
+        "rfdiffusion1": {
+          "note": "RFdiffusion fixes the backbone of everything it is told to keep.",
+          "support": "implied"
+        }
+      },
+      "granularity": "either",
+      "group": "primary",
+      "inside_keep": true,
+      "key": "fix_position",
+      "label": "Fix position",
+      "tooltip": "Fix position (RFD4 C_CRD): hold these atoms' coordinates in the design. Choosing side-chain atoms fixes the side chain too.",
+      "value_kind": "none",
+      "variants": []
+    },
+    {
+      "annotation": "C_SEQ",
+      "atom_rule": null,
+      "colour": "#eab308",
+      "engines": {
+        "rfd4": {
+          "note": "",
+          "support": "native"
+        },
+        "rfdiffusion1": {
+          "note": "Honoured as fixed positions when ProteinMPNN designs the sequence.",
+          "support": "downstream"
+        }
+      },
+      "granularity": "residue",
+      "group": "primary",
+      "inside_keep": true,
+      "key": "fix_sequence",
+      "label": "Fix sequence",
+      "tooltip": "Fix sequence (RFD4 C_SEQ): keep these residues' amino-acid identities.",
+      "value_kind": "none",
+      "variants": []
+    },
+    {
+      "annotation": "C_IDX",
+      "atom_rule": null,
+      "colour": "#06b6d4",
+      "engines": {
+        "rfd4": {
+          "note": "",
+          "support": "native"
+        },
+        "rfdiffusion1": {
+          "note": "RFdiffusion has no equivalent; needs RFD4.",
+          "support": "none"
+        }
+      },
+      "granularity": "residue",
+      "group": "primary",
+      "inside_keep": true,
+      "key": "float",
+      "label": "Float",
+      "tooltip": "Float (RFD4 C_IDX false, 'unindex'): keep these residues but let the design choose where they sit in the sequence. Residues sharing a group keep their spacing relative to one another.",
+      "value_kind": "group",
+      "variants": []
+    },
+    {
+      "annotation": "C_SEC",
+      "atom_rule": null,
+      "colour": "#f43f5e",
+      "engines": {
+        "rfd4": {
+          "note": "",
+          "support": "native"
+        },
+        "rfdiffusion1": {
+          "note": "RFdiffusion has no equivalent; needs RFD4.",
+          "support": "none"
+        }
+      },
+      "granularity": "residue",
+      "group": "more",
+      "inside_keep": false,
+      "key": "secondary_structure",
+      "label": "Secondary structure",
+      "tooltip": "Secondary structure (RFD4 C_SEC): ask for a helix, sheet or loop here.",
+      "value_kind": "enum",
+      "variants": [
+        {
+          "label": "Helix",
+          "tooltip": "C_SEC HELIX",
+          "value": "HELIX"
+        },
+        {
+          "label": "Sheet",
+          "tooltip": "C_SEC SHEET",
+          "value": "SHEET"
+        },
+        {
+          "label": "Loop",
+          "tooltip": "C_SEC LOOP",
+          "value": "LOOP"
+        }
+      ]
+    },
+    {
+      "annotation": "C_RAS",
+      "atom_rule": null,
+      "colour": "#b45309",
+      "engines": {
+        "rfd4": {
+          "note": "",
+          "support": "native"
+        },
+        "rfdiffusion1": {
+          "note": "RFdiffusion has no equivalent; needs RFD4.",
+          "support": "none"
+        }
+      },
+      "granularity": "residue",
+      "group": "more",
+      "inside_keep": false,
+      "key": "rasa",
+      "label": "Burial",
+      "tooltip": "Burial (RFD4 C_RAS): how exposed to solvent these residues should be.",
+      "value_kind": "enum",
+      "variants": [
+        {
+          "label": "Buried",
+          "tooltip": "C_RAS BURIED",
+          "value": "BURIED"
+        },
+        {
+          "label": "Partly buried",
+          "tooltip": "C_RAS INTERMEDIATE",
+          "value": "INTERMEDIATE"
+        },
+        {
+          "label": "Exposed",
+          "tooltip": "C_RAS EXPOSED",
+          "value": "EXPOSED"
+        }
+      ]
+    },
+    {
+      "annotation": "C_HB",
+      "atom_rule": null,
+      "colour": "#ef4444",
+      "engines": {
+        "rfd4": {
+          "note": "",
+          "support": "native"
+        },
+        "rfdiffusion1": {
+          "note": "RFdiffusion has no equivalent; needs RFD4.",
+          "support": "none"
+        }
+      },
+      "granularity": "atom",
+      "group": "more",
+      "inside_keep": false,
+      "key": "hbond",
+      "label": "H-bond",
+      "tooltip": "H-bond (RFD4 C_HB): these atoms should donate and/or accept a hydrogen bond.",
+      "value_kind": "enum",
+      "variants": [
+        {
+          "atom_rule": {
+            "allowed": {
+              "ALA": [
+                "N"
+              ],
+              "ARG": [
+                "N",
+                "NE",
+                "NH1",
+                "NH2"
+              ],
+              "ASN": [
+                "N",
+                "ND2"
+              ],
+              "ASP": [
+                "N"
+              ],
+              "CYS": [
+                "N"
+              ],
+              "GLN": [
+                "N",
+                "NE2"
+              ],
+              "GLU": [
+                "N"
+              ],
+              "GLY": [
+                "N"
+              ],
+              "HIS": [
+                "N",
+                "ND1",
+                "NE2"
+              ],
+              "ILE": [
+                "N"
+              ],
+              "LEU": [
+                "N"
+              ],
+              "LYS": [
+                "N",
+                "NZ"
+              ],
+              "MET": [
+                "N"
+              ],
+              "PHE": [
+                "N"
+              ],
+              "SER": [
+                "N",
+                "OG"
+              ],
+              "THR": [
+                "N",
+                "OG1"
+              ],
+              "TRP": [
+                "N",
+                "NE1"
+              ],
+              "TYR": [
+                "N",
+                "OH"
+              ],
+              "VAL": [
+                "N"
+              ]
+            },
+            "kind": "narrow"
+          },
+          "label": "H-bond donor",
+          "tooltip": "C_HB DONOR",
+          "value": "DONOR"
+        },
+        {
+          "atom_rule": {
+            "allowed": {
+              "ALA": [
+                "O"
+              ],
+              "ARG": [
+                "O"
+              ],
+              "ASN": [
+                "O",
+                "OD1"
+              ],
+              "ASP": [
+                "O",
+                "OD1",
+                "OD2"
+              ],
+              "CYS": [
+                "O"
+              ],
+              "GLN": [
+                "O",
+                "OE1"
+              ],
+              "GLU": [
+                "O",
+                "OE1",
+                "OE2"
+              ],
+              "GLY": [
+                "O"
+              ],
+              "HIS": [
+                "O",
+                "ND1",
+                "NE2"
+              ],
+              "ILE": [
+                "O"
+              ],
+              "LEU": [
+                "O"
+              ],
+              "LYS": [
+                "O"
+              ],
+              "MET": [
+                "O"
+              ],
+              "PHE": [
+                "O"
+              ],
+              "PRO": [
+                "O"
+              ],
+              "SER": [
+                "O",
+                "OG"
+              ],
+              "THR": [
+                "O",
+                "OG1"
+              ],
+              "TRP": [
+                "O"
+              ],
+              "TYR": [
+                "O",
+                "OH"
+              ],
+              "VAL": [
+                "O"
+              ]
+            },
+            "kind": "narrow"
+          },
+          "label": "H-bond acceptor",
+          "tooltip": "C_HB ACCEPTOR",
+          "value": "ACCEPTOR"
+        },
+        {
+          "atom_rule": {
+            "allowed": {
+              "HIS": [
+                "ND1",
+                "NE2"
+              ],
+              "SER": [
+                "OG"
+              ],
+              "THR": [
+                "OG1"
+              ],
+              "TYR": [
+                "OH"
+              ]
+            },
+            "kind": "narrow"
+          },
+          "label": "H-bond donor and acceptor",
+          "tooltip": "C_HB BOTH",
+          "value": "BOTH"
+        }
+      ]
+    },
+    {
+      "annotation": "C_PISTACK",
+      "atom_rule": {
+        "groups": {
+          "HIS": [
+            [
+              "CG",
+              "ND1",
+              "CD2",
+              "CE1",
+              "NE2"
+            ]
+          ],
+          "PHE": [
+            [
+              "CG",
+              "CD1",
+              "CD2",
+              "CE1",
+              "CE2",
+              "CZ"
+            ]
+          ],
+          "TRP": [
+            [
+              "CG",
+              "CD1",
+              "NE1",
+              "CE2",
+              "CD2"
+            ],
+            [
+              "CD2",
+              "CE2",
+              "CE3",
+              "CZ2",
+              "CZ3",
+              "CH2"
+            ]
+          ],
+          "TYR": [
+            [
+              "CG",
+              "CD1",
+              "CD2",
+              "CE1",
+              "CE2",
+              "CZ"
+            ]
+          ]
+        },
+        "kind": "group"
+      },
+      "colour": "#c026d3",
+      "engines": {
+        "rfd4": {
+          "note": "",
+          "support": "native"
+        },
+        "rfdiffusion1": {
+          "note": "RFdiffusion has no equivalent; needs RFD4.",
+          "support": "none"
+        }
+      },
+      "granularity": "atom",
+      "group": "more",
+      "inside_keep": false,
+      "key": "pistack",
+      "label": "Pi-stack",
+      "tooltip": "Pi-stack (RFD4 C_PISTACK): these aromatic rings should stack.",
+      "value_kind": "none",
+      "variants": []
+    },
+    {
+      "annotation": "C_PICATION",
+      "atom_rule": null,
+      "colour": "#a21caf",
+      "engines": {
+        "rfd4": {
+          "note": "",
+          "support": "native"
+        },
+        "rfdiffusion1": {
+          "note": "RFdiffusion has no equivalent; needs RFD4.",
+          "support": "none"
+        }
+      },
+      "granularity": "atom",
+      "group": "more",
+      "inside_keep": false,
+      "key": "pication",
+      "label": "Pi-cation",
+      "tooltip": "Pi-cation (RFD4 C_PICATION): a ring and a cation should interact.",
+      "value_kind": "enum",
+      "variants": [
+        {
+          "atom_rule": {
+            "groups": {
+              "HIS": [
+                [
+                  "CG",
+                  "ND1",
+                  "CD2",
+                  "CE1",
+                  "NE2"
+                ]
+              ],
+              "PHE": [
+                [
+                  "CG",
+                  "CD1",
+                  "CD2",
+                  "CE1",
+                  "CE2",
+                  "CZ"
+                ]
+              ],
+              "TRP": [
+                [
+                  "CG",
+                  "CD1",
+                  "NE1",
+                  "CE2",
+                  "CD2"
+                ],
+                [
+                  "CD2",
+                  "CE2",
+                  "CE3",
+                  "CZ2",
+                  "CZ3",
+                  "CH2"
+                ]
+              ],
+              "TYR": [
+                [
+                  "CG",
+                  "CD1",
+                  "CD2",
+                  "CE1",
+                  "CE2",
+                  "CZ"
+                ]
+              ]
+            },
+            "kind": "group"
+          },
+          "label": "Pi-cation ring",
+          "tooltip": "C_PICATION AROMATIC",
+          "value": "AROMATIC"
+        },
+        {
+          "atom_rule": {
+            "groups": {
+              "ARG": [
+                [
+                  "NE",
+                  "NH1",
+                  "NH2"
+                ]
+              ],
+              "LYS": [
+                [
+                  "NZ"
+                ]
+              ]
+            },
+            "kind": "group"
+          },
+          "label": "Pi-cation cation",
+          "tooltip": "C_PICATION CATION",
+          "value": "CATION"
+        }
+      ]
+    },
+    {
+      "annotation": "C_SALT",
+      "atom_rule": null,
+      "colour": "#dc2626",
+      "engines": {
+        "rfd4": {
+          "note": "",
+          "support": "native"
+        },
+        "rfdiffusion1": {
+          "note": "RFdiffusion has no equivalent; needs RFD4.",
+          "support": "none"
+        }
+      },
+      "granularity": "atom",
+      "group": "more",
+      "inside_keep": false,
+      "key": "salt",
+      "label": "Salt bridge",
+      "tooltip": "Salt bridge (RFD4 C_SALT): a charged group that should pair with an opposite charge.",
+      "value_kind": "enum",
+      "variants": [
+        {
+          "atom_rule": {
+            "groups": {
+              "ARG": [
+                [
+                  "NE",
+                  "NH1",
+                  "NH2"
+                ]
+              ],
+              "LYS": [
+                [
+                  "NZ"
+                ]
+              ]
+            },
+            "kind": "group"
+          },
+          "label": "Positive charge",
+          "tooltip": "C_SALT POSITIVE",
+          "value": "POSITIVE"
+        },
+        {
+          "atom_rule": {
+            "groups": {
+              "ASP": [
+                [
+                  "OD1",
+                  "OD2"
+                ]
+              ],
+              "GLU": [
+                [
+                  "OE1",
+                  "OE2"
+                ]
+              ]
+            },
+            "kind": "group"
+          },
+          "label": "Negative charge",
+          "tooltip": "C_SALT NEGATIVE",
+          "value": "NEGATIVE"
+        }
+      ]
+    },
+    {
+      "annotation": "C_HPHOB",
+      "atom_rule": {
+        "allowed": {
+          "ALA": [
+            "CB"
+          ],
+          "ILE": [
+            "CB",
+            "CG1",
+            "CG2",
+            "CD1"
+          ],
+          "LEU": [
+            "CB",
+            "CG",
+            "CD1",
+            "CD2"
+          ],
+          "MET": [
+            "CB",
+            "CG",
+            "CE"
+          ],
+          "PHE": [
+            "CB",
+            "CG",
+            "CD1",
+            "CD2",
+            "CE1",
+            "CE2",
+            "CZ"
+          ],
+          "PRO": [
+            "CB",
+            "CG",
+            "CD"
+          ],
+          "TRP": [
+            "CB",
+            "CG",
+            "CD1",
+            "CD2",
+            "CE2",
+            "CE3",
+            "CZ2",
+            "CZ3",
+            "CH2"
+          ],
+          "TYR": [
+            "CB",
+            "CG",
+            "CD1",
+            "CD2",
+            "CE1",
+            "CE2"
+          ],
+          "VAL": [
+            "CB",
+            "CG1",
+            "CG2"
+          ]
+        },
+        "kind": "narrow"
+      },
+      "colour": "#92400e",
+      "engines": {
+        "rfd4": {
+          "note": "",
+          "support": "native"
+        },
+        "rfdiffusion1": {
+          "note": "RFdiffusion has no equivalent; needs RFD4.",
+          "support": "none"
+        }
+      },
+      "granularity": "atom",
+      "group": "more",
+      "inside_keep": false,
+      "key": "hydrophobic",
+      "label": "Hydrophobic contact",
+      "tooltip": "Hydrophobic contact (RFD4 C_HPHOB): these carbons should pack against a hydrophobe.",
+      "value_kind": "none",
+      "variants": []
+    },
+    {
+      "annotation": "C_MCOORD",
+      "atom_rule": null,
+      "colour": "#78716c",
+      "engines": {
+        "rfd4": {
+          "note": "",
+          "support": "native"
+        },
+        "rfdiffusion1": {
+          "note": "RFdiffusion has no equivalent; needs RFD4.",
+          "support": "none"
+        }
+      },
+      "granularity": "atom",
+      "group": "more",
+      "inside_keep": false,
+      "key": "metal",
+      "label": "Metal binding",
+      "tooltip": "Metal binding (RFD4 C_MCOORD COORDINATING): these atoms should coordinate a metal ion.",
+      "value_kind": "enum",
+      "variants": [
+        {
+          "atom_rule": {
+            "allowed": {
+              "ASN": [
+                "OD1"
+              ],
+              "ASP": [
+                "OD1",
+                "OD2"
+              ],
+              "CYS": [
+                "SG"
+              ],
+              "GLN": [
+                "OE1"
+              ],
+              "GLU": [
+                "OE1",
+                "OE2"
+              ],
+              "HIS": [
+                "ND1",
+                "NE2"
+              ],
+              "MET": [
+                "SD"
+              ],
+              "SER": [
+                "OG"
+              ],
+              "THR": [
+                "OG1"
+              ],
+              "TYR": [
+                "OH"
+              ]
+            },
+            "kind": "narrow"
+          },
+          "label": "Metal-coordinating",
+          "tooltip": "C_MCOORD COORDINATING",
+          "value": "COORDINATING"
+        }
+      ]
+    }
+  ]
+}

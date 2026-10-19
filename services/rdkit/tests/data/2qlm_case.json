@@ -1,0 +1,17 @@
+{
+  "pdb_id": "2qlm",
+  "ligand_smiles": "Cc1ccc(C(=O)NC(=O)N[C@@H]2O[C@H](CO)[C@@H](O)[C@H](O)[C@H]2O)cc1",
+  "fragment_smiles": [
+    "OC[C@H]1OC[C@H](O)[C@@H](O)[C@@H]1O",
+    "Cc1ccccc1"
+  ],
+  "true_anchors": [
+    6,
+    6
+  ],
+  "true_linker_atoms": 6,
+  "true_path_atoms": 4,
+  "separation": 6.1,
+  "anchor_distance": 6.1,
+  "coverage": 0.75
+}

@@ -1,0 +1,88 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+{{- if .Values.plip.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: plip
+  labels:
+    {{- include "aevom.labels" (dict "root" $ "name" "plip") | nindent 4 }}
+spec:
+  {{- if not .Values.plip.autoscaling.enabled }}
+  replicas: 1
+  {{- end }}
+  selector:
+    matchLabels:
+      app: plip
+  template:
+    metadata:
+      labels:
+        app: plip
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: plip
+          image: {{ include "aevom.image" (dict "root" $ "component" "plip") }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: 8000
+          env:
+            - name: LOG_LEVEL
+              valueFrom:
+                configMapKeyRef:
+                  name: aevom-config
+                  key: LOG_LEVEL
+            {{- range $key, $value := .Values.plip.env }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+            {{- end }}
+          # Nothing to load and nothing to mount: PLIP and OpenBabel are in the
+          # image and every input arrives in the request body. So one probe on
+          # /health is the whole story -- there is no ready-but-not-loaded state
+          # to distinguish, unlike admet.
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 15
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+          resources:
+            {{- toYaml .Values.plip.resources | nindent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: plip
+  labels:
+    {{- include "aevom.labels" (dict "root" $ "name" "plip") | nindent 4 }}
+spec:
+  selector:
+    app: plip
+  ports:
+    - port: 8000
+      targetPort: 8000
+{{- end }}

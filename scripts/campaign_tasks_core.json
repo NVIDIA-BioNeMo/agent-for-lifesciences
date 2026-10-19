@@ -1,0 +1,28 @@
+[
+  {"id": "molinfo-ibuprofen",
+   "message": "What are the RDKit-computed properties (molecular weight, logP, TPSA, H-bond donors and acceptors, rotatable bonds) of ibuprofen? Use the appropriate tool."},
+
+  {"id": "gates-lipinski",
+   "message": "Run drug-likeness gates on these molecules and tell me which pass a Lipinski-style filter: aspirin (CC(=O)Oc1ccccc1C(=O)O), ibuprofen (CC(C)Cc1ccc(cc1)C(C)C(=O)O), and erythromycin. Use the molecule gates tool."},
+
+  {"id": "smiles-safe-roundtrip-tool",
+   "message": "Convert the SMILES of ibuprofen (CC(C)Cc1ccc(cc1)C(C)C(=O)O) to SAFE fragment notation using the dedicated tool, then convert that SAFE string back to SMILES with the dedicated tool."},
+
+  {"id": "admet-core",
+   "message": "Predict the core ADMET panel (including hERG, blood-brain barrier, and aqueous solubility) for aspirin and ibuprofen. Use the ADMET tool."},
+
+  {"id": "ccd-imatinib",
+   "message": "What is the PDB Chemical Component Dictionary (CCD) code for imatinib?"},
+
+  {"id": "rcsb-search-ca2",
+   "message": "Search the RCSB PDB for X-ray structures of human carbonic anhydrase 2 and list a few PDB IDs with resolutions."},
+
+  {"id": "pubchem-to-admet",
+   "message": "Download the structure of gefitinib from PubChem, then predict its ADMET properties (hERG and solubility at least). Use the tools."},
+
+  {"id": "fetch-to-plip",
+   "message": "Fetch and clean the PDB structure 1STP (streptavidin bound to biotin), then profile the protein-ligand interactions between the protein and biotin using PLIP."},
+
+  {"id": "pubchem-to-visualize",
+   "message": "Find aspirin's 3D structure on PubChem, download it, and display it in the 3D viewer."}
+]

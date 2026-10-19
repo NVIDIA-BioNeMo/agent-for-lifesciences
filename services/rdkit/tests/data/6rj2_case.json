@@ -1,0 +1,17 @@
+{
+  "pdb_id": "6rj2",
+  "ligand_smiles": "CC(=O)NS(=O)(=O)c1ccc([C@@H](C)NC(=O)c2cc(-c3ccccc3)nn2C)cc1",
+  "fragment_smiles": [
+    "CCc1ccc(S(=O)(=O)NC(C)=O)cc1",
+    "c1ccccc1"
+  ],
+  "true_anchors": [
+    13,
+    5
+  ],
+  "true_linker_atoms": 9,
+  "true_path_atoms": 5,
+  "separation": 6.46,
+  "anchor_distance": 6.99,
+  "coverage": 0.7
+}

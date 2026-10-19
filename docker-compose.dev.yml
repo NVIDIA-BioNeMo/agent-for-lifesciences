@@ -1,0 +1,344 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Development configuration with React hot-reload
+# Usage: make dev
+#
+# This runs:
+#   - Vite dev server with hot-reload on http://localhost:5180
+#   - FastAPI backend on http://localhost:8080
+#   - PostgreSQL, RDKit, PyExec, and Phoenix services
+#
+# Access the app at http://localhost:5180
+
+services:
+  # Vite dev server with hot-reload
+  vite:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    ports:
+      - "5180:5173" # Host port 5180 -> container port 5173
+    volumes:
+      - ${HOST_PROJECT_PATH:-.}/frontend/src:/app/src
+      - ${HOST_PROJECT_PATH:-.}/frontend/public:/app/public
+      - ${HOST_PROJECT_PATH:-.}/frontend/index.html:/app/index.html
+      - ${HOST_PROJECT_PATH:-.}/frontend/vite.config.ts:/app/vite.config.ts
+      - ${HOST_PROJECT_PATH:-.}/frontend/tsconfig.json:/app/tsconfig.json
+      - ${HOST_PROJECT_PATH:-.}/frontend/tsconfig.node.json:/app/tsconfig.node.json
+    environment:
+      - VITE_API_URL=http://backend:8000
+      # Version from git tag (for feedback annotation versioning)
+      - VERSION=${VERSION:-0.0.0-dev}
+      # Enable polling for file watching (required for Docker volume mounts)
+      - CHOKIDAR_USEPOLLING=true
+      - CHOKIDAR_INTERVAL=1000
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # FastAPI backend (API only, no static files needed in dev)
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      args:
+        VERSION: ${VERSION:-0.0.0-dev}
+    ports:
+      - "8080:8000" # Host port 8080 -> container port 8000
+    volumes:
+      # Long-form bind with create_host_path:false so Docker fails fast if the
+      # key file is missing instead of silently creating an empty directory.
+      # Preflight (scripts/check-prerequisites.sh) is the primary guard; this is
+      # defense-in-depth for users who bypass `make` and run compose directly.
+      - type: bind
+        source: ${HOST_PROJECT_PATH:-.}/API_KEY_NV
+        target: /run/secrets/nvidia_api_key
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${HOST_PROJECT_PATH:-.}/API_KEY_NVINF
+        target: /run/secrets/nvidia_api_key_nvinf
+        read_only: true
+        bind:
+          create_host_path: false
+      # Optional: an empty file (preflight creates one) means Anthropic models
+      # are not configured. Populated, they appear in the model dropdown.
+      - type: bind
+        source: ${HOST_PROJECT_PATH:-.}/API_KEY_ANTHROPIC
+        target: /run/secrets/anthropic_api_key
+        read_only: true
+        bind:
+          create_host_path: false
+      # Optional, same convention: OpenAI models appear when populated.
+      - type: bind
+        source: ${HOST_PROJECT_PATH:-.}/API_KEY_OPENAI
+        target: /run/secrets/openai_api_key
+        read_only: true
+        bind:
+          create_host_path: false
+      - ${HOST_PROJECT_PATH:-.}/backend/api:/app/api # Live reload Python changes
+      - ${HOST_PROJECT_PATH:-.}/prompts.md:/prompts.md:ro # System prompt (single source of truth)
+    command:
+      [
+        "uvicorn",
+        "api.main:app",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "8000",
+        "--reload",
+        "--reload-dir",
+        "/app/api",
+      ]
+    environment:
+      - NVIDIA_API_KEY_FILE=/run/secrets/nvidia_api_key
+      - DATABASE_URL=postgresql+asyncpg://aevom:${POSTGRES_PASSWORD:-aevom_dev_password}@postgres:5432/aevom
+      - RDKIT_SERVICE_URL=http://rdkit:8000
+      - PYEXEC_SERVICE_URL=http://pyexec:8000
+      - VINA_SERVICE_URL=http://vina:8000
+      - ADMET_SERVICE_URL=http://admet:8000
+      - PLIP_SERVICE_URL=http://plip:8000
+      - LOG_LEVEL=${LOG_LEVEL:-DEBUG}
+      - AEVOM_MODEL=${AEVOM_MODEL:-nemotron-3-5-super-vl}
+      - PHOENIX_COLLECTOR_ENDPOINT=http://phoenix:4317
+      - PHOENIX_PROJECT_NAME=aevom
+      - AEVOM_DEV_MODE=true # Enable dynamic prompt reloading
+      - AEVOM_FEAT_STORAGE_ACCESS_API=${AEVOM_FEAT_STORAGE_ACCESS_API:-true}
+      # TRUE offers the model the generic http_request tool (any host in
+      # HTTP_TOOL_ALLOWED_HOSTS). Skill endpoint tools do not need it.
+      - AEVOM_FEAT_HTTP_REQUEST_TOOL=${AEVOM_FEAT_HTTP_REQUEST_TOOL:-false}
+      # The owner cookie is Secure by default; this stack serves plain HTTP,
+      # where a browser would drop a Secure cookie and every request would 401.
+      - AEVOM_COOKIE_SECURE=${AEVOM_COOKIE_SECURE:-false}
+      # TRUE lists OpenAI's GPT Rosalind models in the dropdown.
+      - FEAT_ROSALIND=${FEAT_ROSALIND:-false}
+      # Free-text feedback relay. Off by default: with no FEEDBACK_EMAIL_ADDRESS
+      # and no SMTP_HOST there is nowhere to send, and the endpoint answers 503.
+      - AEVOM_FEAT_FEEDBACK_EMAIL=${AEVOM_FEAT_FEEDBACK_EMAIL:-false}
+      - FEEDBACK_EMAIL_ADDRESS=${FEEDBACK_EMAIL_ADDRESS:-}
+      # Envelope sender. Authenticated relays require it to be the mailbox of
+      # the account in SMTP_USERNAME; empty falls back to the recipient.
+      - FEEDBACK_FROM_ADDRESS=${FEEDBACK_FROM_ADDRESS:-}
+      - SMTP_HOST=${SMTP_HOST:-}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_STARTTLS=${SMTP_STARTTLS:-true}
+      - SMTP_USERNAME=${SMTP_USERNAME:-}
+      - SMTP_PASSWORD=${SMTP_PASSWORD:-}
+
+      # Version from git tag (for feedback annotation versioning)
+      - VERSION_NUMBER=${VERSION:-0.0.0-dev}
+      - REDIS_URL=redis://redis:6379/0
+
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rdkit:
+        condition: service_healthy
+      pyexec:
+        condition: service_healthy
+      vina:
+        condition: service_healthy
+      plip:
+        condition: service_healthy
+      # Started, not healthy: with lazy loading in dev the ensemble is not
+      # read until the first prediction, and nothing else waits on it.
+      admet:
+        condition: service_started
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: aevom
+      POSTGRES_USER: aevom
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-aevom_dev_password}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aevom -d aevom"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  rdkit:
+    build:
+      context: ./services/rdkit
+      dockerfile: Dockerfile
+    image: aevom-rdkit:latest
+    environment:
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+
+  pyexec:
+    build:
+      context: ./services/pyexec
+      dockerfile: Dockerfile
+    volumes:
+      - ${HOST_PROJECT_PATH:-.}/services/pyexec/app:/app/app # Live reload Python changes
+    command:
+      [
+        "uvicorn",
+        "app.main:app",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "8000",
+        "--reload",
+        "--reload-dir",
+        "/app/app",
+      ]
+    environment:
+      - LOG_LEVEL=${LOG_LEVEL:-DEBUG}
+      - BACKEND_URL=http://backend:8000 # For aevom client to call back to backend
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  vina:
+    build:
+      context: ./services/vina
+      dockerfile: Dockerfile
+      target: cpu-final # Default to CPU; use docker-compose.gpu.yml for GPU
+    image: aevom-vina:latest
+    environment:
+      - LOG_LEVEL=${LOG_LEVEL:-DEBUG}
+      - VINA_GPU=false
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 60s # Vina may take longer to initialize
+    restart: unless-stopped
+
+  admet:
+    build:
+      context: ./services/admet
+      dockerfile: Dockerfile
+    image: aevom-admet:latest
+    volumes:
+      - ${HOST_PROJECT_PATH:-.}/services/admet/app:/app/app # Live reload Python changes
+    command:
+      [
+        "uvicorn",
+        "app.main:app",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "8000",
+        "--reload",
+        "--reload-dir",
+        "/app/app",
+      ]
+    environment:
+      - LOG_LEVEL=${LOG_LEVEL:-DEBUG}
+      # Reloading on every edit would re-read every Chemprop checkpoint off
+      # disk, so in dev the first prediction pays for the load instead.
+      - ADMET_EAGER_LOAD=${ADMET_EAGER_LOAD:-false}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 180s
+    restart: unless-stopped
+
+  plip:
+    build:
+      context: ./services/plip
+      dockerfile: Dockerfile
+    image: aevom-plip:latest
+    volumes:
+      - ${HOST_PROJECT_PATH:-.}/services/plip/app:/app/app # Live reload Python changes
+    command:
+      [
+        "uvicorn",
+        "app.main:app",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "8000",
+        "--reload",
+        "--reload-dir",
+        "/app/app",
+      ]
+    environment:
+      - LOG_LEVEL=${LOG_LEVEL:-DEBUG}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+  phoenix:
+    image: arizephoenix/phoenix:version-13.0.3
+    ports:
+      - "6080:6006" # Host port 6080 -> container port 6006
+    environment:
+      - PHOENIX_WORKING_DIR=/phoenix_data
+    volumes:
+      - phoenix_data:/phoenix_data
+    restart: unless-stopped
+
+networks:
+  default:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 192.168.249.0/24
+
+volumes:
+  postgres_data:
+    driver: local
+  phoenix_data:
+    driver: local

@@ -1,0 +1,21 @@
+{
+  "name": "molstar-headless",
+  "version": "1.0.0",
+  "description": "Headless MolQL query execution service for Aevom training",
+  "main": "dist/app.js",
+  "scripts": {
+    "build": "esbuild src/app.ts --bundle --platform=node --target=node20 --outfile=dist/app.js --format=cjs",
+    "start": "node dist/app.js",
+    "test": "node tests/run.js"
+  },
+  "dependencies": {
+    "express": "^4.21.0",
+    "molstar": "^4.5.0"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.11.0",
+    "esbuild": "^0.24.0",
+    "typescript": "^5.3.3"
+  }
+}

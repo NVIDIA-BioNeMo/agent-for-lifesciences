@@ -1,0 +1,13 @@
+{
+  "tool_name": "get_pubchem_properties",
+  "args_hash": "27a0152fef160f4f",
+  "content_type": "text",
+  "data": "{\n  \"molecular_weight\": 194.19,\n  \"molecular_formula\": \"C8H10N4O2\",\n  \"xlogp\": -0.1,\n  \"tpsa\": 58.4,\n  \"charge\": 0,\n  \"exact_mass\": 194.08037557,\n  \"complexity\": 293,\n  \"h_bond_donor_count\": 0,\n  \"h_bond_acceptor_count\": 3,\n  \"rotatable_bond_count\": 0,\n  \"heavy_atom_count\": 14\n}",
+  "metadata": {},
+  "cache_metadata": {
+    "arguments": {
+      "cid": 2519
+    }
+  },
+  "artifacts": []
+}

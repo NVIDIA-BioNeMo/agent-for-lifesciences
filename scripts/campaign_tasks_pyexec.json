@@ -1,0 +1,27 @@
+[
+  {"id": "px-descriptor-panel",
+   "message": "Use the python tool with RDKit to compute the molecular weight, TPSA, QED, and Bemis-Murcko scaffold SMILES for aspirin (SMILES CC(=O)Oc1ccccc1C(=O)O). Print each value."},
+
+  {"id": "px-safe-roundtrip",
+   "message": "Use the python tool to encode the SMILES of ibuprofen (CC(C)Cc1ccc(cc1)C(C)C(=O)O) into SAFE fragment notation, split it into fragments on '.', and print each fragment. Then decode it back to SMILES and print that too."},
+
+  {"id": "pubchem-sdf-to-px",
+   "message": "Download the 3D structure of ibuprofen from PubChem, then use the python tool to load that stored structure as an RDKit molecule and report its molecular weight, Crippen logP, and number of rotatable bonds."},
+
+  {"id": "rcsb-to-px-rgyr",
+   "message": "Fetch and clean PDB 1CRN, then use the python tool to compute the radius of gyration over its C-alpha atoms and print it in Angstroms."},
+
+  {"id": "px-store-then-load",
+   "message": "Use the python tool to build benzene from the SMILES c1ccccc1, generate 3D coordinates, and store it. Then in a SECOND python tool call, load that stored molecule back from storage and print its number of atoms and whether it has 3D coordinates."},
+
+  {"id": "px-enumerate-store",
+   "message": "Use the python tool to enumerate three methyl-halide analogs of toluene by substituting F, Cl, and Br at the para position, store each one, and print the storage reference and canonical SMILES for each."},
+
+  {"id": "multiturn-caffeine-1",
+   "session": "camp-multiturn-caffeine",
+   "message": "Download the 3D structure of caffeine from PubChem and tell me its PubChem CID."},
+
+  {"id": "multiturn-caffeine-2",
+   "session": "camp-multiturn-caffeine",
+   "message": "Now, using the caffeine structure you just downloaded, use the python tool to compute its exact molecular weight and TPSA with RDKit and report both."}
+]

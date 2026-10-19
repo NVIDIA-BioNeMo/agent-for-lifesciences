@@ -1,0 +1,15 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+diff --git a/.github/scripts/prune-orphans.sh b/.github/scripts/prune-orphans.sh
+--- a/.github/scripts/prune-orphans.sh
++++ b/.github/scripts/prune-orphans.sh
+@@ -1,6 +1,7 @@
+ #!/usr/bin/env bash
+ # SPDX-License-Identifier: Apache-2.0
+-# Copyright (c) 2026 NVIDIA Corporation. All rights reserved.
++# Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
++# Modified by Aevom: corrected the NVIDIA copyright entity; license unchanged.
+ #
+ # FORK of NVIDIA/skills' prune-orphans.sh, adapted for this repo's GROUPED,
+ # multi-root layout. Differences from upstream:

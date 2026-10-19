@@ -1,0 +1,68 @@
+{#
+SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-License-Identifier: Apache-2.0
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+-#}
+{# Base template for LLM system prompts.
+
+This template provides the foundational structure that all model-specific
+templates should extend. It defines blocks that can be overridden:
+- system_intro: The opening introduction for the AI
+- reasoning_instructions: How to handle reasoning/thinking
+- tool_instructions: How to format tool calls
+- model_specific: Model-specific additions
+
+Variables available:
+- system_prompt: The main system prompt content (from prompts.md)
+- supports_reasoning: Whether the model supports reasoning mode
+- model_name: The model identifier
+- tools: List of available tool schemas (optional)
+#}
+
+{# Main system prompt content - this is the base Aevom prompt #}
+{% block system_intro %}
+{{ system_prompt }}
+{% endblock %}
+
+{# Reasoning format instructions - override for model-specific reasoning syntax #}
+{% block reasoning_instructions %}
+{% if supports_reasoning %}
+
+## Reasoning Mode
+
+You have reasoning capabilities enabled. When working through complex problems:
+- Think step by step before taking action
+- Consider multiple approaches when appropriate
+- Verify your reasoning before finalizing responses
+{% endif %}
+{% endblock %}
+
+{# Tool usage instructions - override for model-specific tool call format #}
+{% block tool_instructions %}
+{% if tools %}
+
+## Available Tools
+
+You have access to the following tools. Use them when appropriate to accomplish the user's request:
+{% for tool in tools %}
+- **{{ tool.function.name }}**: {{ tool.function.description }}
+{% endfor %}
+
+When you need to use a tool, call it using the function calling API. Wait for tool results before proceeding.
+{% endif %}
+{% endblock %}
+
+{# Model-specific additions - override in model templates #}
+{% block model_specific %}
+{% endblock %}

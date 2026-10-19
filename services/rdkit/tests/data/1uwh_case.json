@@ -1,0 +1,17 @@
+{
+  "pdb_id": "1uwh",
+  "ligand_smiles": "CNC(=O)c1cc(Oc2ccc(NC(=O)Nc3ccc(Cl)c(C(F)(F)F)c3)cc2)ccn1",
+  "fragment_smiles": [
+    "FC(F)(F)c1ccccc1Cl",
+    "CNC(=O)c1cc(O)ccn1"
+  ],
+  "true_anchors": [
+    8,
+    1
+  ],
+  "true_linker_atoms": 10,
+  "true_path_atoms": 7,
+  "separation": 9.42,
+  "anchor_distance": 9.42,
+  "coverage": 0.688
+}

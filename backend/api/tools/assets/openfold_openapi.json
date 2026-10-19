@@ -1,0 +1,1010 @@
+{
+    "openapi": "3.1.0",
+    "info": {
+        "title": "NVIDIA NIM API INTERFACE",
+        "version": "1.1.0"
+    },
+    "paths": {
+        "/biology/openfold/openfold3/predict": {
+            "post": {
+                "summary": "Post Of3 Predict",
+                "operationId": "post_of3_predict_biology_openfold_openfold3_predict_post",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/OF3Request"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/OF3Response"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/health/live": {
+            "get": {
+                "summary": "Health Live",
+                "description": "Provide your implementation of liveness to know when to restart container",
+                "operationId": "health_live_v1_health_live_get",
+                "responses": {
+                    "200": {
+                        "description": "Service is live",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/NIMHealthSuccessResponse"
+                                }
+                            }
+                        }
+                    },
+                    "503": {
+                        "description": "Service is not live",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/NIMErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/health/ready": {
+            "get": {
+                "summary": "Health Ready",
+                "description": "Provide your implementation of readiness to know when container ready to accept traffic",
+                "operationId": "health_ready_v1_health_ready_get",
+                "responses": {
+                    "200": {
+                        "description": "Service is ready",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/NIMHealthSuccessResponse"
+                                }
+                            }
+                        }
+                    },
+                    "503": {
+                        "description": "Service is not ready",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/NIMErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/metrics": {
+            "get": {
+                "summary": "Metrics",
+                "description": "Handler for metrics endpoint.",
+                "operationId": "metrics_v1_metrics_get",
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "string",
+                                    "title": "Response Metrics V1 Metrics Get"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/license": {
+            "get": {
+                "summary": "License",
+                "description": "Handler for license endpoint.",
+                "operationId": "license_v1_license_get",
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/LicenseEndpointModel"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/metadata": {
+            "get": {
+                "summary": "Metadata",
+                "description": "Handler for metadata endpoint.",
+                "operationId": "metadata_v1_metadata_get",
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/MetadataEndpointModel"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/version": {
+            "get": {
+                "summary": "Version",
+                "description": "Handler for version endpoint.",
+                "operationId": "version_v1_version_get",
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/NIMVersionResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/manifest": {
+            "get": {
+                "summary": "Manifest",
+                "description": "Handler for the manifest endpoint.",
+                "operationId": "manifest_v1_manifest_get",
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ManifestEndpointModel"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "components": {
+        "schemas": {
+            "AlignmentFileRecord": {
+                "properties": {
+                    "alignment": {
+                        "type": "string",
+                        "minLength": 0,
+                        "title": "Multiple Sequence Alignment.",
+                        "description": "The contents of a single MSA.",
+                        "tooltip": "The contents of a single MSA."
+                    },
+                    "format": {
+                        "type": "string",
+                        "minLength": 1,
+                        "title": "Alignment Format",
+                        "description": "The format of the alignment record(s). Must be one of: csv, a3m, fasta, or sto (case-sensitive).",
+                        "tooltip": "Supported formats: csv, a3m, fasta, sto (must be lowercase)"
+                    },
+                    "rank": {
+                        "anyOf": [
+                            {
+                                "type": "integer"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Rank",
+                        "description": "An integer rank to define the ordering of alignments (for example, when concatenating alignments).",
+                        "default": -1,
+                        "tooltip": "An integer rank."
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "alignment",
+                    "format"
+                ],
+                "title": "AlignmentFileRecord",
+                "description": "Represents a single alignment.\nThis is just the raw file output read into a string\nand of a defined version."
+            },
+            "HTTPValidationError": {
+                "properties": {
+                    "detail": {
+                        "items": {
+                            "$ref": "#/components/schemas/ValidationError"
+                        },
+                        "type": "array",
+                        "title": "Detail"
+                    }
+                },
+                "type": "object",
+                "title": "HTTPValidationError"
+            },
+            "LicenseEndpointModel": {
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "title": "Name",
+                        "description": "The name of the license for the NIM container."
+                    },
+                    "path": {
+                        "type": "string",
+                        "title": "Path",
+                        "description": "The filepath within the container containing the license content."
+                    },
+                    "sha": {
+                        "type": "string",
+                        "title": "Sha",
+                        "description": "A SHA1 hash of the license contents."
+                    },
+                    "size": {
+                        "type": "integer",
+                        "title": "Size",
+                        "description": "The number of characters in the license content."
+                    },
+                    "url": {
+                        "type": "string",
+                        "title": "Url",
+                        "description": "The url where this license is hosted externally."
+                    },
+                    "type": {
+                        "type": "string",
+                        "const": "file",
+                        "title": "Type",
+                        "description": "The format of the license content."
+                    },
+                    "content": {
+                        "type": "string",
+                        "title": "Content",
+                        "description": "The license text."
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "name",
+                    "path",
+                    "sha",
+                    "size",
+                    "url",
+                    "type",
+                    "content"
+                ],
+                "title": "LicenseEndpointModel",
+                "description": "A model representing the license response."
+            },
+            "ManifestEndpointModel": {
+                "properties": {
+                    "manifest_file": {
+                        "type": "string",
+                        "title": "Manifest File",
+                        "description": "The content of the manifest file describing the required model artifacts."
+                    },
+                    "repository_override": {
+                        "type": "string",
+                        "title": "Repository Override",
+                        "description": "Alternate location used to retrieve artifacts from manifest file."
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "manifest_file",
+                    "repository_override"
+                ],
+                "title": "ManifestEndpointModel",
+                "description": "A model representing the manifest response."
+            },
+            "MetadataEndpointModel": {
+                "properties": {
+                    "assetInfo": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "title": "Assetinfo",
+                        "description": "A list of required container assets excluding model artifacts"
+                    },
+                    "licenseInfo": {
+                        "$ref": "#/components/schemas/LicenseEndpointModel",
+                        "description": "The license info."
+                    },
+                    "modelInfo": {
+                        "items": {
+                            "$ref": "#/components/schemas/ModelInfo"
+                        },
+                        "type": "array",
+                        "title": "Modelinfo",
+                        "description": "A list of models being served by the NIM."
+                    },
+                    "repository_override": {
+                        "type": "string",
+                        "title": "Repository Override",
+                        "description": "Alternate location used to retrieve artifacts from manifest file."
+                    },
+                    "version": {
+                        "type": "string",
+                        "title": "Version",
+                        "description": "The version of the NIM service."
+                    },
+                    "selectedModelProfileId": {
+                        "type": "string",
+                        "title": "Selectedmodelprofileid",
+                        "description": "The ID of the currently selected model profile."
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "assetInfo",
+                    "licenseInfo",
+                    "modelInfo",
+                    "repository_override",
+                    "version",
+                    "selectedModelProfileId"
+                ],
+                "title": "MetadataEndpointModel",
+                "description": "A model representing the metadata response."
+            },
+            "ModelInfo": {
+                "properties": {
+                    "modelUrl": {
+                        "type": "string",
+                        "title": "Modelurl"
+                    },
+                    "shortName": {
+                        "type": "string",
+                        "title": "Shortname"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "modelUrl",
+                    "shortName"
+                ],
+                "title": "ModelInfo",
+                "description": "A model representing the model response."
+            },
+            "Molecule": {
+                "properties": {
+                    "type": {
+                        "$ref": "#/components/schemas/MoleculeType"
+                    },
+                    "id": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "items": {
+                                    "type": "string"
+                                },
+                                "type": "array"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Id",
+                        "description": "Unique identifier for the polymer chain(s). Can be a single chain ID or a list of chain IDs. Each ID can be either a single letter (A-Z) or a PDB-style ID (4 alphanumeric characters)",
+                        "examples": [
+                            "A",
+                            "B",
+                            "1ABC",
+                            "PROT",
+                            [
+                                "A",
+                                "B"
+                            ],
+                            [
+                                "1ABC",
+                                "2DEF"
+                            ]
+                        ],
+                        "tooltip": "The chain identifier(s) for this polymer. Can be a single string or list of strings. If not provided, will be auto-assigned (A, B, C, etc.)."
+                    },
+                    "sequence": {
+                        "anyOf": [
+                            {
+                                "type": "string",
+                                "maxLength": 4096,
+                                "minLength": 2,
+                                "pattern": "^[A-Za-z]+$"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Sequence",
+                        "description": "The amino acid, DNA, or RNA sequence. For proteins, use standard single-letter amino acid codes. For DNA, use A/T/C/G. For RNA, use A/U/C/G.",
+                        "examples": [
+                            "MKTVRQERLK",
+                            "ATCGATCG",
+                            "AUCGAUCG"
+                        ],
+                        "tooltip": "A polymer sequence, which should be a valid DNA, RNA, or Protein sequence."
+                    },
+                    "ccd_codes": {
+                        "anyOf": [
+                            {
+                                "type": "string",
+                                "maxLength": 5,
+                                "minLength": 1,
+                                "pattern": "^[A-Z0-9]{1,5}$"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Ccd Codes",
+                        "description": "Chemical Component Dictionary (CCD) code for the ligand",
+                        "examples": [
+                            "ATP",
+                            "EKY",
+                            "NAD",
+                            "NADPH"
+                        ],
+                        "tooltip": "The Chemical Component Dictionary ID of the ligand [mutually exclusive with smiles]. Must be 1-5 uppercase letters/numbers."
+                    },
+                    "smiles": {
+                        "anyOf": [
+                            {
+                                "type": "string",
+                                "minLength": 1
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Smiles",
+                        "description": "SMILES string representation of the ligand",
+                        "examples": [
+                            "CC(=O)OC1=CC=CC=C1C(=O)O"
+                        ],
+                        "tooltip": "A smiles string for the ligand. This argument is mutually exclusive with 'ccd'."
+                    },
+                    "msa": {
+                        "anyOf": [
+                            {
+                                "additionalProperties": {
+                                    "additionalProperties": {
+                                        "$ref": "#/components/schemas/AlignmentFileRecord"
+                                    },
+                                    "type": "object"
+                                },
+                                "type": "object",
+                                "maxProperties": 3,
+                                "minProperties": 0
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Msa",
+                        "description": "A Dictionary [database_name -> [format -> AlignmentFileRecord]] containing alignments",
+                        "tooltip": "The MSA for a sequence, which should contain the sequence itself as the first sequence in the alignments, and which should be in A3M or CSV format."
+                    },
+                    "paired_msa": {
+                        "anyOf": [
+                            {
+                                "additionalProperties": {
+                                    "additionalProperties": {
+                                        "$ref": "#/components/schemas/AlignmentFileRecord"
+                                    },
+                                    "type": "object"
+                                },
+                                "type": "object",
+                                "maxProperties": 3,
+                                "minProperties": 0
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Paired Msa",
+                        "description": "A Dictionary [database_name -> [format -> AlignmentFileRecord]] containing pairwise alignments between different molecules. Used to specify joint MSAs such as protein-protein or protein-nucleic acid pairwise alignments.",
+                        "tooltip": "A pairwise MSA (joint MSA) for two molecules. Useful for specifying protein-protein or protein-nucleic acid pairwise alignments, provided in A3M or CSV format."
+                    },
+                    "structural_templates": {
+                        "anyOf": [
+                            {
+                                "items": {
+                                    "$ref": "#/components/schemas/StructuralTemplate"
+                                },
+                                "type": "array"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Structural Templates",
+                        "description": "A list of structural templates for this molecule.",
+                        "tooltip": "A list of structural templates in CIF format that can be used to guide the structure prediction."
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "type"
+                ],
+                "title": "Molecule"
+            },
+            "MoleculeType": {
+                "type": "string",
+                "enum": [
+                    "protein",
+                    "rna",
+                    "dna",
+                    "ligand"
+                ],
+                "title": "MoleculeType"
+            },
+            "NIMErrorResponse": {
+                "properties": {
+                    "error": {
+                        "additionalProperties": true,
+                        "type": "object",
+                        "title": "Error",
+                        "description": "Error details"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "error"
+                ],
+                "title": "NIMErrorResponse",
+                "description": "Error response model."
+            },
+            "NIMHealthSuccessResponse": {
+                "properties": {
+                    "object": {
+                        "type": "string",
+                        "title": "Object",
+                        "description": "The object of the health response.",
+                        "default": "health.response"
+                    },
+                    "message": {
+                        "type": "string",
+                        "title": "Message",
+                        "description": "The message of the health response."
+                    },
+                    "status": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Status",
+                        "description": "The status of the health response for backwards compatibility."
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "message"
+                ],
+                "title": "NIMHealthSuccessResponse",
+                "description": "A model representing the health success response."
+            },
+            "NIMVersionResponse": {
+                "properties": {
+                    "release": {
+                        "type": "string",
+                        "title": "Release",
+                        "description": "The product release version of NIM for LLMs."
+                    },
+                    "api": {
+                        "type": "string",
+                        "title": "Api",
+                        "description": "The server API version running inside the NIM."
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "release",
+                    "api"
+                ],
+                "title": "NIMVersionResponse",
+                "description": "A model representing versions of the NIM"
+            },
+            "OF3Input": {
+                "properties": {
+                    "input_id": {
+                        "anyOf": [
+                            {
+                                "type": "string",
+                                "maxLength": 128
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Identifier / tag for the input.",
+                        "description": "Identifier / tag for the input.",
+                        "default": "input_id_0",
+                        "examples": [
+                            "my_complex_1"
+                        ]
+                    },
+                    "molecules": {
+                        "items": {
+                            "$ref": "#/components/schemas/Molecule"
+                        },
+                        "type": "array",
+                        "maxItems": 32,
+                        "minItems": 1,
+                        "title": "Molecules",
+                        "description": "A list of sequences, each can be of type protein, dna, rna, or ligand..MAX_POLYMER_COUNT protein, rna, and dna sequences are allowed..MAX_LIGAND_COUNT ligand sequences are allowed.",
+                        "tooltip": "A list of sequences, each can be of type protein, dna, rna, or ligand"
+                    },
+                    "diffusion_samples": {
+                        "anyOf": [
+                            {
+                                "type": "integer"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Diffusion Samples",
+                        "description": "This parameter specifies the total number of independent structures the model will generate. Each sample is created from a different random initial noise distribution, leading to a potential diversity of final predictions. Generating multiple samples is useful for exploring different possible conformations of a structure and assessing the model's confidence and consistency.",
+                        "default": 1,
+                        "max": 5,
+                        "min": 1,
+                        "tooltip": "Controls the number of attempted structures. Increases runtime linearly with the number of structures."
+                    },
+                    "output_format": {
+                        "anyOf": [
+                            {
+                                "type": "string",
+                                "enum": [
+                                    "cif",
+                                    "pdb"
+                                ]
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Output Format",
+                        "description": "The output format of the returned structure.",
+                        "default": "cif",
+                        "tooltip": "CIF and PDB are currently supported."
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "molecules"
+                ],
+                "title": "OF3Input"
+            },
+            "OF3Output": {
+                "properties": {
+                    "input_id": {
+                        "anyOf": [
+                            {
+                                "type": "string",
+                                "maxLength": 128
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Identifier / tag for the input.",
+                        "description": "Identifier / tag for the input.",
+                        "examples": [
+                            "my_complex_1"
+                        ]
+                    },
+                    "structures_with_scores": {
+                        "items": {
+                            "$ref": "#/components/schemas/StructureWithScores"
+                        },
+                        "type": "array",
+                        "title": "Structures with confidence scores, in ranked order ",
+                        "description": "The predicted structures, in ranked order",
+                        "tooltip": "A list of predicted structures, in ranked order"
+                    },
+                    "runtime_metrics": {
+                        "anyOf": [
+                            {
+                                "additionalProperties": true,
+                                "type": "object"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Metrics",
+                        "description": "Runtime metrics for the request.",
+                        "default": {},
+                        "tooltip": "Performance and runtime metrics associated with processing the input."
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "structures_with_scores"
+                ],
+                "title": "OF3Output"
+            },
+            "OF3Request": {
+                "properties": {
+                    "request_id": {
+                        "anyOf": [
+                            {
+                                "type": "string",
+                                "maxLength": 128
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Identifier / tag for the request.",
+                        "description": "Identifier / tag for the request.",
+                        "examples": [
+                            "experiment_1"
+                        ]
+                    },
+                    "inputs": {
+                        "items": {
+                            "$ref": "#/components/schemas/OF3Input"
+                        },
+                        "type": "array",
+                        "maxItems": 1,
+                        "minItems": 1,
+                        "title": "List of inputs",
+                        "description": "List of inputs",
+                        "tooltip": "List of inputs"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "inputs"
+                ],
+                "title": "OF3Request"
+            },
+            "OF3Response": {
+                "properties": {
+                    "request_id": {
+                        "anyOf": [
+                            {
+                                "type": "string",
+                                "maxLength": 128
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Identifier / tag for the request.",
+                        "description": "Identifier / tag for the request.",
+                        "examples": [
+                            "experiment_1"
+                        ]
+                    },
+                    "outputs": {
+                        "items": {
+                            "$ref": "#/components/schemas/OF3Output"
+                        },
+                        "type": "array",
+                        "maxItems": 1,
+                        "minItems": 1,
+                        "title": "List of outputs",
+                        "description": "List of output",
+                        "tooltip": "List of outputs"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "outputs"
+                ],
+                "title": "OF3Response"
+            },
+            "StructuralTemplate": {
+                "properties": {
+                    "structure": {
+                        "type": "string",
+                        "title": "Structural Template",
+                        "description": "The contents of a single structural template.",
+                        "tooltip": "The contents of a single structure template."
+                    },
+                    "format": {
+                        "type": "string",
+                        "const": "cif",
+                        "title": "Structure Format",
+                        "description": "The format of the structure record.",
+                        "tooltip": "The format of the structure file. Only CIF format is supported."
+                    },
+                    "name": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Name",
+                        "description": "An optional name for the structure.",
+                        "default": "",
+                        "tooltip": "An optional name to identify this structure."
+                    },
+                    "chain_id": {
+                        "anyOf": [
+                            {
+                                "type": "string",
+                                "maxLength": 10,
+                                "minLength": 1,
+                                "pattern": "^[A-Za-z0-9_-]+$"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Chain ID",
+                        "description": "Optional chain ID to use from the template structure. If not specified, the best matching chain will be automatically selected. Supports mmCIF label_asym_id format (e.g., 'A', 'A1', 'AA', 'CHAIN1').",
+                        "tooltip": "Specific chain ID to use from this template CIF file (e.g., 'A', 'A1', 'B2'). Leave empty for automatic selection based on sequence similarity."
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "structure",
+                    "format"
+                ],
+                "title": "StructuralTemplate"
+            },
+            "StructureWithScores": {
+                "properties": {
+                    "structure": {
+                        "type": "string",
+                        "title": "Structure Prediction.",
+                        "description": "The contents of a single structural prediction.",
+                        "tooltip": "The contents of a single structure prediction."
+                    },
+                    "format": {
+                        "type": "string",
+                        "enum": [
+                            "cif",
+                            "pdb"
+                        ],
+                        "title": "Structure Format",
+                        "description": "The format of the structure record.",
+                        "tooltip": "The format of the structure file, supports CIF and PDB."
+                    },
+                    "name": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Name",
+                        "description": "An optional name for the structure.",
+                        "default": "",
+                        "tooltip": "A name to identify this structure prediction."
+                    },
+                    "source": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Source",
+                        "description": "The source file for the structure.",
+                        "default": "",
+                        "tooltip": "The original file or data source that was used to generate this structure."
+                    },
+                    "confidence_score": {
+                        "type": "number",
+                        "title": "Confidence Score i.e. ranking score",
+                        "description": "Confidence score used to rank structures.",
+                        "tooltip": "A list of confidence score indicating the reliability of each predicted structure."
+                    },
+                    "complex_plddt_score": {
+                        "type": "number",
+                        "title": "Average pLDDT score for the complex",
+                        "description": "Average pLDDT score for the complex",
+                        "tooltip": "Average pLDDT score for the complex"
+                    },
+                    "complex_pde_score": {
+                        "type": "number",
+                        "title": "Average PDE score for the complex",
+                        "description": "Average PDE score for the complex",
+                        "tooltip": "Average pLDDT score for the complex"
+                    },
+                    "ptm_score": {
+                        "type": "number",
+                        "title": "Predicted TM score for the complex",
+                        "description": "Predicted TM score for the complex.",
+                        "tooltip": "Predicted TM score for the entire complex"
+                    },
+                    "iptm_score": {
+                        "type": "number",
+                        "title": "Predicted TM score when aggregating at the interfaces",
+                        "description": "Predicted TM score when aggregating at the interfaces.",
+                        "tooltip": "Predicted TM score when aggregating at the interfaces"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "structure",
+                    "format",
+                    "confidence_score",
+                    "complex_plddt_score",
+                    "complex_pde_score",
+                    "ptm_score",
+                    "iptm_score"
+                ],
+                "title": "StructureWithScores",
+                "description": "Represents a single structure prediction.\nThis is just the raw file output read into a string\nand of a defined version."
+            },
+            "ValidationError": {
+                "properties": {
+                    "loc": {
+                        "items": {
+                            "anyOf": [
+                                {
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "integer"
+                                }
+                            ]
+                        },
+                        "type": "array",
+                        "title": "Location"
+                    },
+                    "msg": {
+                        "type": "string",
+                        "title": "Message"
+                    },
+                    "type": {
+                        "type": "string",
+                        "title": "Error Type"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "loc",
+                    "msg",
+                    "type"
+                ],
+                "title": "ValidationError"
+            }
+        }
+    }
+}

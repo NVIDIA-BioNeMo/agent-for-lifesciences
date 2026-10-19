@@ -1,0 +1,35 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+{{- if and .Values.api.enabled .Values.api.podDisruptionBudget.enabled }}
+{{/*
+Keeps a node drain from taking the last api pod with it. The selector is
+immutable, like the Deployment's, so it stays a bare `app: aevom-api`.
+
+Worth knowing: with minAvailable 1 and the HPA's minReplicas also 1, a drain
+blocks until the HPA has scaled up or the eviction times out.
+*/}}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: aevom-api
+  labels:
+    {{- include "aevom.labels" (dict "root" $ "name" "aevom-api") | nindent 4 }}
+spec:
+  minAvailable: {{ .Values.api.podDisruptionBudget.minAvailable }}
+  selector:
+    matchLabels:
+      app: aevom-api
+{{- end }}

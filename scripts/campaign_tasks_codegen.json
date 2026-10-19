@@ -1,0 +1,5 @@
+[
+  {"id": "cg-count-elements", "message": "Fetch and clean PDB 1CRN, then use the python tool to count how many atoms of each chemical element are present in the structure. Report the count for each element."},
+  {"id": "cg-atoms-per-resname", "message": "Fetch and clean PDB 1CRN, then use the python tool to compute, for each residue name (ALA, CYS, ...), the total number of atoms summed across all residues of that name. Report the table sorted by count."},
+  {"id": "cg-hbond-donor-tally", "message": "Fetch and clean PDB 1STP, then use the python tool to tally, per residue name, how many backbone nitrogen (N) atoms occur. Report the tally."}
+]

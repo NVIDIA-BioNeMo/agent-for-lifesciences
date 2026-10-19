@@ -1,0 +1,92 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+{{- if .Values.admet.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: admet
+  labels:
+    {{- include "aevom.labels" (dict "root" $ "name" "admet") | nindent 4 }}
+spec:
+  {{- if not .Values.admet.autoscaling.enabled }}
+  replicas: 1
+  {{- end }}
+  selector:
+    matchLabels:
+      app: admet
+  template:
+    metadata:
+      labels:
+        app: admet
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: admet
+          image: {{ include "aevom.image" (dict "root" $ "component" "admet") }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: 8000
+          env:
+            - name: LOG_LEVEL
+              valueFrom:
+                configMapKeyRef:
+                  name: aevom-config
+                  key: LOG_LEVEL
+            {{- range $key, $value := .Values.admet.env }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+            {{- end }}
+          # No volumes: the Chemprop ensembles and the DrugBank reference set are
+          # package data inside the image, so a pod needs nothing mounted and
+          # nothing fetched at startup.
+          # /health is up as soon as uvicorn is, so it only catches a wedged
+          # process; /ready answers 503 until the ensemble is loaded, which is
+          # what keeps traffic away while that happens.
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 60
+            periodSeconds: 15
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8000
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            timeoutSeconds: 5
+            # 30 x 10s covers a cold start on a slow node without giving up.
+            failureThreshold: 30
+          resources:
+            {{- toYaml .Values.admet.resources | nindent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: admet
+  labels:
+    {{- include "aevom.labels" (dict "root" $ "name" "admet") | nindent 4 }}
+spec:
+  selector:
+    app: admet
+  ports:
+    - port: 8000
+      targetPort: 8000
+{{- end }}

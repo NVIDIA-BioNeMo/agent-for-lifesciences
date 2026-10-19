@@ -1,0 +1,279 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      args:
+        VERSION: ${VERSION:-0.0.0-dev}
+    # Named explicitly, as rdkit/vina/molstar-headless already are. Without it the
+    # tag is derived from the compose project name, which is the directory name --
+    # so a checkout into a differently-named directory (a CI runner, a worktree)
+    # produces a tag docker-compose.eval.yml cannot find.
+    image: aevom-api:latest
+    ports:
+      - "5180:8000" # Host port 5180 -> container port 8000
+    volumes:
+      # Long-form bind with create_host_path:false so Docker fails fast if the
+      # key file is missing instead of silently creating an empty directory.
+      # Preflight (scripts/check-prerequisites.sh) is the primary guard; this is
+      # defense-in-depth for users who bypass `make` and run compose directly.
+      - type: bind
+        source: ${HOST_PROJECT_PATH:-.}/API_KEY_NV
+        target: /run/secrets/nvidia_api_key
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${HOST_PROJECT_PATH:-.}/API_KEY_NVINF
+        target: /run/secrets/nvidia_api_key_nvinf
+        read_only: true
+        bind:
+          create_host_path: false
+      # Optional: an empty file (preflight creates one) means Anthropic models
+      # are not configured. Populated, they appear in the model dropdown.
+      - type: bind
+        source: ${HOST_PROJECT_PATH:-.}/API_KEY_ANTHROPIC
+        target: /run/secrets/anthropic_api_key
+        read_only: true
+        bind:
+          create_host_path: false
+      # Optional, same convention: OpenAI models appear when populated.
+      - type: bind
+        source: ${HOST_PROJECT_PATH:-.}/API_KEY_OPENAI
+        target: /run/secrets/openai_api_key
+        read_only: true
+        bind:
+          create_host_path: false
+      - ${HOST_PROJECT_PATH:-.}/backend/api:/app/api # Dev: live reload Python changes
+      - ${HOST_PROJECT_PATH:-.}/prompts.md:/prompts.md:ro # System prompt (single source of truth)
+    command:
+      [
+        "uvicorn",
+        "api.main:app",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "8000",
+        "--reload",
+      ]
+    environment:
+      - NVIDIA_API_KEY_FILE=/run/secrets/nvidia_api_key
+      - DATABASE_URL=postgresql+asyncpg://aevom:${POSTGRES_PASSWORD:-aevom_dev_password}@postgres:5432/aevom
+      - RDKIT_SERVICE_URL=http://rdkit:8000
+      - PYEXEC_SERVICE_URL=http://pyexec:8000
+      - VINA_SERVICE_URL=http://vina:8000
+      - ADMET_SERVICE_URL=http://admet:8000
+      - PLIP_SERVICE_URL=http://plip:8000
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - AEVOM_MODEL=${AEVOM_MODEL:-nemotron-3-5-super-vl}
+      - PHOENIX_COLLECTOR_ENDPOINT=http://phoenix:4317
+      - REDIS_URL=redis://redis:6379/0
+      - PHOENIX_PROJECT_NAME=aevom
+      # Version from git tag (for feedback annotation versioning)
+      - VERSION_NUMBER=${VERSION:-0.0.0-dev}
+      - AEVOM_FEAT_STORAGE_ACCESS_API=${AEVOM_FEAT_STORAGE_ACCESS_API:-true}
+      # TRUE offers the model the generic http_request tool (any host in
+      # HTTP_TOOL_ALLOWED_HOSTS). Skill endpoint tools do not need it.
+      - AEVOM_FEAT_HTTP_REQUEST_TOOL=${AEVOM_FEAT_HTTP_REQUEST_TOOL:-false}
+      # The owner cookie is Secure by default; this stack serves plain HTTP,
+      # where a browser would drop a Secure cookie and every request would 401.
+      - AEVOM_COOKIE_SECURE=${AEVOM_COOKIE_SECURE:-false}
+      # TRUE lists OpenAI's GPT Rosalind models in the dropdown.
+      - FEAT_ROSALIND=${FEAT_ROSALIND:-false}
+      # Free-text feedback relay, off unless configured. FEEDBACK_EMAIL_ADDRESS
+      # is where feedback lands; FEEDBACK_FROM_ADDRESS is the From header, which
+      # must be on a domain the relay may send for or the mail fails SPF. Set
+      # these and AEVOM_FEAT_FEEDBACK_EMAIL=true in .env to turn it on.
+      - AEVOM_FEAT_FEEDBACK_EMAIL=${AEVOM_FEAT_FEEDBACK_EMAIL:-false}
+      - FEEDBACK_EMAIL_ADDRESS=${FEEDBACK_EMAIL_ADDRESS:-}
+      - FEEDBACK_FROM_ADDRESS=${FEEDBACK_FROM_ADDRESS:-}
+      - SMTP_HOST=${SMTP_HOST:-}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_STARTTLS=${SMTP_STARTTLS:-true}
+      - SMTP_USERNAME=${SMTP_USERNAME:-}
+      # No default on purpose: this file is tracked by git, so a password for a
+      # relay that does want one belongs in .env (gitignored) or the shell.
+      - SMTP_PASSWORD=${SMTP_PASSWORD:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rdkit:
+        condition: service_healthy
+      pyexec:
+        condition: service_healthy
+      vina:
+        condition: service_healthy
+      plip:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      # Started, not healthy: the ensemble takes seconds to load, and no other
+      # tool needs it. admet_predict reports the service's own degraded state if
+      # it is called before the weights are in memory.
+      admet:
+        condition: service_started
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: aevom
+      POSTGRES_USER: aevom
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-aevom_dev_password}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aevom -d aevom"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  rdkit:
+    build:
+      context: ./services/rdkit
+      dockerfile: Dockerfile
+    image: aevom-rdkit:latest
+    environment:
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+
+  pyexec:
+    build:
+      context: ./services/pyexec
+      dockerfile: Dockerfile
+    image: aevom-pyexec:latest
+    environment:
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - BACKEND_URL=http://backend:8000 # For aevom client to call back to backend
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  vina:
+    build:
+      context: ./services/vina
+      dockerfile: Dockerfile
+      target: cpu-final # Default to CPU; use docker-compose.gpu.yml for GPU
+    image: aevom-vina:latest
+    environment:
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - VINA_GPU=false
+      - CONFORMER_COUNT=${CONFORMER_COUNT:-50}
+      - ROT_BOND_THRESHOLD=${ROT_BOND_THRESHOLD:-15}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 60s # Vina may take longer to initialize
+    restart: unless-stopped
+
+  admet:
+    build:
+      context: ./services/admet
+      dockerfile: Dockerfile
+    image: aevom-admet:latest
+    environment:
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    healthcheck:
+      # /ready, not /health: this service answers /health as soon as uvicorn is
+      # up, and reports itself ready only once the ensemble is loaded.
+      test: ["CMD", "curl", "-f", "http://localhost:8000/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      # Generous: the ensemble loads in seconds, but a cold first pull and a
+      # busy host make the difference between a warning and a restart loop.
+      start_period: 120s
+    restart: unless-stopped
+
+  plip:
+    build:
+      context: ./services/plip
+      dockerfile: Dockerfile
+    image: aevom-plip:latest
+    environment:
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+  molstar-headless:
+    build:
+      context: ./services/molstar-headless
+      dockerfile: Dockerfile
+    image: aevom-molstar-headless:latest
+    environment:
+      - MOLSTAR_PORT=8020
+    healthcheck:
+      test: ["CMD", "node", "-e", "const http=require('http');http.get('http://localhost:8020/health',r=>{process.exit(r.statusCode===200?0:1)}).on('error',()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      # REDIS_HOST_PORT (in .env or the shell) moves it off a port already taken
+      # by a local redis, e.g. Homebrew's on a Mac.
+      - "${REDIS_HOST_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  phoenix:
+    image: arizephoenix/phoenix:version-13.0.3
+    ports:
+      - "6080:6006" # Host port 6080 -> container port 6006
+    environment:
+      - PHOENIX_WORKING_DIR=/phoenix_data
+    volumes:
+      - phoenix_data:/phoenix_data
+    restart: unless-stopped
+
+networks:
+  default:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 192.168.249.0/24
+
+volumes:
+  postgres_data:
+    driver: local
+  phoenix_data:
+    driver: local

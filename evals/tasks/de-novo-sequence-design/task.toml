@@ -1,0 +1,127 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+schema_version = "1.3"
+
+[task]
+name = "aevom/de-novo-sequence-design"
+description = """
+Generate a protein from nothing, design sequences for it, and interrogate the
+design's own uncertainty. Covers two things no other task does.
+
+First, de novo mode means *omitting* the structure argument. The hosted
+RFDiffusion endpoint rejects a request with no input_pdb even for a design that
+has nothing to build on, and the upstream skill tells the reader to send a dummy
+one; Aevom's tool supplies that placeholder itself. So a model following the
+skill's prose too literally passes a structure it invented, and quietly gets a
+design conditioned on it.
+
+Second, ProteinMPNN's probability matrix comes back as an `array` reference
+rather than as numbers in the reply -- it is (16, 120, 21) floats here. Reading it
+requires aevom.load_array in python_execute. That offload path exists only in
+Aevom and nothing else in the suite exercises it.
+"""
+keywords = ["aevom", "proteinmpnn", "rfdiffusion", "nim", "skills", "storage-pattern"]
+
+[environment]
+# `main` is the harness container, not part of the Aevom stack. It only needs a
+# stdlib Python to run the uploaded driver.
+docker_image = "python:3.12-slim"
+
+[agent]
+# The NIM calls total well under a minute; the budget is model round trips, one
+# of which writes and runs the array analysis.
+timeout_sec = 1500.0
+
+[verifier]
+timeout_sec = 300.0
+
+# Graded by AevomVerifier (evals/aevom_eval/verifier.py). Only the dimensions
+# declared here are scored; see evals/aevom_eval/scoring.py.
+[metadata.expect]
+required_tool_sequence = [
+    "rfdiffusion_design_backbone",
+    "proteinmpnn_design_sequence",
+    "python_execute",
+]
+# Both design NIMs are builtins so the model never hand-builds the health.api
+# request the upstream skill prose describes. Reaching for http_request means the
+# Level 2 banner from api/skills/binding.py stopped superseding that prose.
+forbidden_tools = ["http_request"]
+
+# The backbone, the designed sequences, and the probability matrix.
+required_artifact_types = ["pdb", "fasta", "array"]
+min_artifacts = 3
+
+# The best design's score is the un-parrotable number here: it exists only in
+# ProteinMPNN's response. Baselined live on 2026-08-08 over two runs of exactly
+# this recipe -- 16 designs each, individual scores spanning 0.827 to 1.059, best
+# 0.827 and 0.907 -- so the band accepts whichever design the model reports.
+#
+# The five uncertain positions are deliberately not graded as numbers. The
+# backbone is freshly diffused each run, so which positions are least confident
+# genuinely changes; two baselines shared only positions 12 and 19. What is
+# gradeable is that the matrix was loaded at all, below.
+answer_numbers = [{ value = 0.94, tolerance = 0.28 }]
+# Long enough to have named five positions, a score, and its direction.
+answer_min_chars = 250
+
+# Calibrated with headroom. The likely honest retry is the array analysis: the
+# matrix is (num_sequences, num_residues, 21) and a first pass that reduces over
+# the wrong axis has to be redone.
+max_failed_tool_calls = 3
+allow_iteration_limit = false
+max_driver_errors = 0
+
+[[metadata.expect.required_tool_arguments]]
+# The whole de novo distinction. Aevom's tool injects the placeholder structure
+# the endpoint demands, and its schema says to omit this; a model that instead
+# follows the upstream skill's dummy-input_pdb instructions and passes something
+# it stored gets a design conditioned on that structure rather than one from
+# nothing. Nothing downstream would reveal the difference.
+tool = "rfdiffusion_design_backbone"
+arg = "pdb_ref"
+present = false
+
+[[metadata.expect.required_tool_arguments]]
+# A bare length, and exactly the one asked for. Any chain letter here would mean
+# the model believed it was building on something.
+tool = "rfdiffusion_design_backbone"
+arg = "contigs"
+matches = "^\\s*120\\s*$"
+example = "120"
+
+[[metadata.expect.required_tool_arguments]]
+tool = "proteinmpnn_design_sequence"
+arg = "num_seq_per_target"
+equals = 16
+example = 16
+
+[[metadata.expect.required_tool_arguments]]
+# Cysteine has to be excluded during sampling. Filtering the returned sequences
+# afterwards would answer a different question and waste most of the designs.
+tool = "proteinmpnn_design_sequence"
+arg = "omit_aas"
+matches = "C"
+example = ["C"]
+
+[[metadata.expect.required_tool_arguments]]
+# load_array, not load: the artifact is a compressed numpy payload, and reading it
+# as text yields nothing usable. This is the check that the probability matrix was
+# actually consulted rather than the answer being improvised from the sequences.
+tool = "python_execute"
+arg = "code"
+matches = "load_array"
+example = "probs = aevom.load_array('array_a1b2c3d4')\nprint(probs.shape)"

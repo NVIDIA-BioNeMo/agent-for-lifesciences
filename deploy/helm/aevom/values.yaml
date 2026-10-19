@@ -1,0 +1,512 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Default values for the aevom chart -- the open-source defaults.
+#
+# These target a plain Kubernetes cluster: no pull secret, the cluster's default
+# storage class, no ingress, no cert-manager, and a model reachable with a single
+# build.nvidia.com key. The NVIDIA-internal cluster overrides them with
+# values-production.yaml.
+#
+# Two invariants this file must preserve:
+#
+#   - `config`, `apiEnv` and `pyexecEnv` are literal maps, not templated
+#     fragments, because backend/api/tests/test_eval_compose_parity.py reads them
+#     with yaml.safe_load to prove the eval stack measures production. Keep them
+#     machine-readable -- no Go templating in the values.
+#   - Resource names are fixed, not derived from the release name. The live
+#     cluster's objects were created by kustomize and are adopted by name, so a
+#     rename would orphan the postgres, redis and phoenix volumes.
+
+# ---------------------------------------------------------------------------
+# Images
+# ---------------------------------------------------------------------------
+
+image:
+  # Registry path holding the four Aevom images (api, rdkit, pyexec, vina).
+  # There is no default because there are no public Aevom images yet: build them
+  # yourself and push them somewhere you control. See deploy/helm/README.md.
+  registry: ""
+  tag: latest
+  pullPolicy: IfNotPresent
+
+# Pull secrets for the four Aevom images. Empty by default -- a public registry
+# needs none. The internal cluster adds its GitLab deploy token here.
+imagePullSecrets: []
+
+# ---------------------------------------------------------------------------
+# Storage
+# ---------------------------------------------------------------------------
+
+persistence:
+  # Empty means "use the cluster default storage class". Only ReadWriteOnce is
+  # required: there is deliberately no shared ReadWriteMany volume, because
+  # rdkit runs behind an HPA and a file written by one replica is invisible to
+  # the others. Molecule depictions are `png` rows in Postgres instead.
+  #
+  # PersistentVolumeClaim specs are immutable apart from size, so changing this
+  # on a running release requires deleting and recreating the claim -- which
+  # means losing the data in it.
+  storageClass: ""
+  postgres:
+    size: 10Gi
+  redis:
+    size: 1Gi
+  phoenix:
+    size: 5Gi
+
+# ---------------------------------------------------------------------------
+# Secrets
+#
+# The chart never creates Secrets; it references ones you create out of band, so
+# key material never passes through values or a release. See
+# deploy/helm/README.md for the kubectl commands.
+# ---------------------------------------------------------------------------
+
+secrets:
+  # Must contain POSTGRES_PASSWORD.
+  app:
+    secretName: aevom-secrets
+  # LLM keys. Each is optional, but at least one of nvidia-api-key,
+  # anthropic-api-key and openai-api-key must exist: the api refuses to start
+  # without an LLM key
+  # ("No LLM API key found"). A missing optional Secret leaves an empty
+  # directory at the mount path, which the api reads as "not configured".
+  #
+  # build.nvidia.com key, mounted at /run/secrets/nvidia_api_key. Serves the
+  # build.nvidia.com models and the NIM-backed tools (OpenFold3, Boltz-2, ...);
+  # without it those tools are withheld.
+  nvidiaApiKey:
+    secretName: nvidia-api-key
+    key: key
+  # Anthropic key, mounted at /run/secrets/anthropic_api_key. When present, the
+  # newest Claude model of each family is discovered from the key and listed in
+  # the model dropdown.
+  anthropic:
+    secretName: anthropic-api-key
+    key: key
+  # OpenAI key, mounted at /run/secrets/openai_api_key. When present, the newest
+  # GPT Astra, Sol and Luna models are discovered from the key and listed in the
+  # model dropdown; GPT Rosalind too when config.FEAT_ROSALIND is "true".
+  openai:
+    secretName: openai-api-key
+    key: key
+  # inference-api.nvidia.com key, mounted at /run/secrets/nvidia_api_key_nvinf.
+  # That endpoint is NVIDIA-internal, so this is off by default -- leaving it on
+  # would stop the api pod from starting for anyone without the second key.
+  # Enable it only if config.AEVOM_MODEL names an inference-api model.
+  nvinf:
+    enabled: false
+    secretName: nvidia-api-key-nvinf
+    key: key
+  # Password for the feedback relay, injected as SMTP_PASSWORD. Off by default
+  # because most in-cluster relays accept unauthenticated mail, and referencing
+  # a Secret that does not exist would stop the api pod from starting.
+  smtp:
+    enabled: false
+    secretName: aevom-smtp
+    key: SMTP_PASSWORD
+
+# ---------------------------------------------------------------------------
+# System prompt
+# ---------------------------------------------------------------------------
+
+prompts:
+  # The image already contains prompts.md, so this is an override, not a
+  # requirement. Set it to ship a prompt change without rebuilding:
+  #   helm upgrade ... --set-file prompts.content=prompts.md
+  # When empty, no ConfigMap is created and nothing is mounted over the image's
+  # copy.
+  content: ""
+
+# ---------------------------------------------------------------------------
+# Application configuration -> ConfigMap aevom-config
+#
+# Read verbatim into the ConfigMap and injected into the api container with
+# envFrom, so adding a key here reaches the api with no template change.
+# ---------------------------------------------------------------------------
+
+config:
+  LOG_LEVEL: "INFO"
+  # The public build.nvidia.com Ultra. nemotron-3-ultra-nvinf is the same weights
+  # behind the NVIDIA-internal gateway; the two sample differently and their eval
+  # scores are not comparable, so switching needs a deliberate re-baseline.
+  AEVOM_MODEL: "nemotron-3-ultra"
+  RDKIT_SERVICE_URL: "http://rdkit:8000"
+  PYEXEC_SERVICE_URL: "http://pyexec:8000"
+  VINA_SERVICE_URL: "http://vina:8000"
+  ADMET_SERVICE_URL: "http://admet:8000"
+  PLIP_SERVICE_URL: "http://plip:8000"
+  REDIS_URL: "redis://redis:6379/0"
+  # The pyexec sandbox calls back to the api by Service name to store artifacts
+  # and trigger visualization.
+  SANDBOX_BACKEND_URL: "http://aevom-api:8000"
+  AEVOM_FEAT_STORAGE_ACCESS_API: "false"
+  # "true" offers the model the generic http_request tool (any host in
+  # HTTP_TOOL_ALLOWED_HOSTS). Skill endpoint tools do not need it.
+  AEVOM_FEAT_HTTP_REQUEST_TOOL: "false"
+  # "true" also lists OpenAI's GPT Rosalind models (needs the openai Secret).
+  FEAT_ROSALIND: "false"
+  # Free-text user feedback, relayed by email. Turning the flag on without also
+  # setting FEEDBACK_EMAIL_ADDRESS and SMTP_HOST shows the button and then fails
+  # every submission with a 503, so set all three together. The relay password,
+  # if the relay wants one, comes from the `smtp` Secret rather than from here.
+  AEVOM_FEAT_FEEDBACK_EMAIL: "false"
+  FEEDBACK_EMAIL_ADDRESS: ""
+  # Envelope sender, which an authenticated relay requires to be the mailbox of
+  # the SMTP_USERNAME account. Empty falls back to FEEDBACK_EMAIL_ADDRESS, which
+  # only works on a relay that accepts unauthenticated mail.
+  FEEDBACK_FROM_ADDRESS: ""
+  SMTP_HOST: ""
+  SMTP_PORT: "587"
+  SMTP_STARTTLS: "true"
+  SMTP_USERNAME: ""
+  # Per-session call budgets for tools that cost money or GPU minutes, written
+  # as "tool=n,tool=n" -- for example "boltz2=8,vina_dock=20". A budgeted tool
+  # reports what is left on every call and refuses once spent, and the agent
+  # sees the remaining spend in its prompt so it can plan around it. Empty
+  # means no limits, which is the default: a limit low enough to matter is a
+  # decision about a particular deployment's costs, not something to guess.
+  AEVOM_TOOL_BUDGETS: ""
+
+# Literal env on the api Deployment, kept out of the ConfigMap because these are
+# wiring rather than configuration. DATABASE_URL's $(POSTGRES_PASSWORD) is
+# expanded by Kubernetes from the secret reference on the same container.
+apiEnv:
+  DATABASE_URL: "postgresql+asyncpg://aevom:$(POSTGRES_PASSWORD)@postgres:5432/aevom"
+  NVIDIA_API_KEY_FILE: "/run/secrets/nvidia_api_key"
+  PHOENIX_COLLECTOR_ENDPOINT: "http://phoenix:4317"
+  PHOENIX_PROJECT_NAME: "aevom"
+  # Overrides the PHOENIX_PORT Kubernetes injects for the phoenix Service, which
+  # the Phoenix client otherwise misreads as its own listen port.
+  PHOENIX_PORT: "6006"
+
+pyexecEnv:
+  # Hardcodes the api Service name, matching config.SANDBOX_BACKEND_URL.
+  BACKEND_URL: "http://aevom-api:8000"
+
+# ---------------------------------------------------------------------------
+# Workloads
+#
+# One key per workload the chart deploys. Every one carries `enabled`, and
+# test_eval_compose_parity.py enumerates them to prove the eval Compose stack
+# covers each enabled workload.
+#
+# `replicas` is deliberately absent wherever autoscaling.enabled is true: a
+# templated replica count fights the HPA back to its value on every upgrade.
+# ---------------------------------------------------------------------------
+
+api:
+  enabled: true
+  service:
+    port: 8000
+  autoscaling:
+    enabled: true
+    minReplicas: 1
+    maxReplicas: 3
+    targetCPUUtilizationPercentage: 70
+    behavior:
+      scaleDown:
+        stabilizationWindowSeconds: 300
+        policies:
+          - type: Pods
+            value: 1
+            periodSeconds: 60
+      scaleUp:
+        stabilizationWindowSeconds: 30
+        policies:
+          - type: Pods
+            value: 1
+            periodSeconds: 30
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+  resources:
+    requests:
+      memory: 512Mi
+      cpu: 200m
+    limits:
+      memory: 2Gi
+      cpu: 1000m
+
+rdkit:
+  enabled: true
+  autoscaling:
+    enabled: true
+    minReplicas: 1
+    maxReplicas: 2
+    targetCPUUtilizationPercentage: 70
+    behavior:
+      scaleDown:
+        stabilizationWindowSeconds: 300
+        policies:
+          - type: Pods
+            value: 1
+            periodSeconds: 60
+      scaleUp:
+        stabilizationWindowSeconds: 30
+        policies:
+          - type: Pods
+            value: 1
+            periodSeconds: 30
+  resources:
+    requests:
+      memory: 512Mi
+      cpu: 200m
+    limits:
+      memory: 2Gi
+      cpu: 1000m
+
+pyexec:
+  enabled: true
+  # How python_execute is isolated.
+  #   openshell: one OpenShell sandbox per chat session, created through the
+  #              gateway configured under `openshell` below (the default). This
+  #              Deployment and its HPA are not rendered, and the api fails
+  #              closed rather than falling back to an unsandboxed interpreter.
+  #   direct:    this Deployment, shared by every session. For clusters without
+  #              the OpenShell prerequisites listed under `openshell`.
+  mode: openshell
+  # Kubernetes user namespaces (hostUsers: false) for the direct-mode pods.
+  # Needs Kubernetes 1.33+ and a runtime that supports them; leave true where
+  # unsupported, or the pods will not schedule.
+  hostUsers: true
+  autoscaling:
+    enabled: true
+    minReplicas: 1
+    maxReplicas: 2
+    targetCPUUtilizationPercentage: 70
+    behavior:
+      scaleDown:
+        stabilizationWindowSeconds: 300
+        policies:
+          - type: Pods
+            value: 1
+            periodSeconds: 60
+      scaleUp:
+        stabilizationWindowSeconds: 30
+        policies:
+          - type: Pods
+            value: 1
+            periodSeconds: 30
+  resources:
+    requests:
+      memory: 256Mi
+      cpu: 100m
+    limits:
+      memory: 1Gi
+      cpu: 500m
+
+# Used only when pyexec.mode is openshell. Requires the OpenShell chart
+# (oci://ghcr.io/nvidia/openshell/helm-chart), the Agent Sandbox controller and
+# a CNI that enforces NetworkPolicy, all installed by a cluster admin. See
+# docs/openshell_sandbox.md.
+openshell:
+  # The gateway's gRPC endpoint. The default is the OpenShell chart's Service
+  # when it is installed as release `openshell` in namespace `openshell`.
+  gateway: "openshell.openshell.svc.cluster.local:8080"
+  # The OpenShell chart's client certificate (ca.crt, tls.crt, tls.key), copied
+  # into this namespace. The gateway requires mTLS for API and service traffic.
+  clientTlsSecret: openshell-client-tls
+  # sha256 of that Secret's data, set by the deploy job when it copies it. The
+  # api builds its gateway client once, so a new certificate must restart it.
+  clientTlsChecksum: ""
+  # Empty means <image.registry>/pyexec-sandbox:<image.tag>, built from
+  # services/pyexec/Dockerfile.openshell.
+  sandboxImage: ""
+  # Warm sandboxes kept ready for new sessions, and the ceiling on sandboxes
+  # of every kind. Each sandbox holds about 550Mi with two pyexec workers.
+  sparePool: 2
+  maxActive: 20
+  idleTtlSeconds: 1800
+  # How long a sandbox may take to start, and a session to wait for one. Each
+  # deploy changes the sandbox image tag, so the first sandbox on every node
+  # pulls about 600MB first; that measured 60s end to end on the production
+  # cluster, against the backend's 60s default.
+  readyTimeoutSeconds: 180
+  sandboxCpu: "1"
+  sandboxMemory: 2Gi
+  # Namespace the OpenShell chart creates sandbox pods in.
+  sandboxNamespace: openshell
+  # Admit traffic to everything but aevom-api only from this namespace, so a
+  # sandbox (or anything else outside it) can reach the api and nothing else.
+  networkPolicy:
+    enabled: true
+
+vina:
+  enabled: true
+  env:
+    VINA_GPU: "false"
+    CONFORMER_COUNT: "50"
+    ROT_BOND_THRESHOLD: "15"
+    UNIDOCK_SEARCH_MODE: "balance"
+  autoscaling:
+    enabled: true
+    minReplicas: 1
+    maxReplicas: 3
+    # Lower than the others: a docking run pins a core for minutes, so waiting
+    # for 70% understates how busy the pod is.
+    targetCPUUtilizationPercentage: 60
+    behavior:
+      scaleDown:
+        # Long, because scaling down mid-docking throws away the work.
+        stabilizationWindowSeconds: 600
+        policies:
+          - type: Pods
+            value: 1
+            periodSeconds: 120
+      scaleUp:
+        stabilizationWindowSeconds: 30
+        policies:
+          - type: Pods
+            value: 1
+            periodSeconds: 30
+  resources:
+    requests:
+      memory: 512Mi
+      cpu: 200m
+    limits:
+      memory: 16Gi
+      cpu: 2000m
+
+admet:
+  enabled: true
+  env:
+    # Build the ensemble during startup rather than on the first request, so a
+    # cold pod is slow to become ready instead of slow to answer. The readiness
+    # probe hits /ready, which is what makes that distinction visible.
+    ADMET_EAGER_LOAD: "true"
+  # No HPA. A prediction is seconds of CPU, so one replica absorbs the load an
+  # agent generates -- and every replica holds its own copy of the ensemble in
+  # memory, which makes scaling out expensive for little gain.
+  autoscaling:
+    enabled: false
+  resources:
+    requests:
+      # The loaded ensemble plus torch is around 1.5 GiB resident, so a smaller
+      # request would schedule this onto nodes it cannot actually run on.
+      memory: 2Gi
+      cpu: 250m
+    limits:
+      memory: 4Gi
+      cpu: 2000m
+
+plip:
+  enabled: true
+  env: {}
+  # No HPA, same reasoning as admet: profiling one complex is about a second of
+  # CPU, and the service holds no state or weights that a second replica would
+  # duplicate usefully.
+  autoscaling:
+    enabled: false
+  resources:
+    requests:
+      # PLIP holds one protonated complex in memory at a time; the floor is
+      # OpenBabel's own footprint rather than the structure.
+      memory: 512Mi
+      cpu: 100m
+    limits:
+      # A large complex with many waters is the expensive case, and analyses are
+      # serialized, so one core is the ceiling that matters.
+      memory: 2Gi
+      cpu: 1000m
+
+postgres:
+  enabled: true
+  image: postgres:16-alpine
+  resources:
+    requests:
+      memory: 256Mi
+      cpu: 100m
+    limits:
+      memory: 1Gi
+      cpu: 500m
+
+redis:
+  enabled: true
+  image: redis:7-alpine
+  resources:
+    requests:
+      memory: 64Mi
+      cpu: 50m
+    limits:
+      memory: 256Mi
+      cpu: 250m
+
+phoenix:
+  # Telemetry. Turning this off also needs apiEnv.PHOENIX_COLLECTOR_ENDPOINT
+  # cleared, or the api spends its time retrying spans against nothing.
+  enabled: true
+  image: arizephoenix/phoenix:version-13.0.3
+  resources:
+    requests:
+      memory: 256Mi
+      cpu: 100m
+    limits:
+      memory: 1Gi
+      cpu: 500m
+
+# ---------------------------------------------------------------------------
+# Ingress
+# ---------------------------------------------------------------------------
+
+ingress:
+  # Off by default: a fresh cluster may have no ingress controller, and an
+  # Ingress with no controller is a silent no-op. Until you enable it, reach the
+  # UI with `kubectl -n aevom port-forward svc/aevom-api 8000:8000`.
+  enabled: false
+  className: nginx
+  host: aevom.local
+  path: /
+  pathType: Prefix
+  # These are what make streaming work. The chat endpoint is server-sent events,
+  # so response buffering has to be off and the read timeout has to outlast a
+  # long agent turn; the defaults would cut the stream mid-answer.
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "60"
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+    nginx.ingress.kubernetes.io/proxy-http-version: "1.1"
+    nginx.ingress.kubernetes.io/proxy-body-size: 50m
+    # Sticky sessions: conversation state is per-replica in places.
+    nginx.ingress.kubernetes.io/affinity: cookie
+    nginx.ingress.kubernetes.io/session-cookie-name: aevom-affinity
+    nginx.ingress.kubernetes.io/session-cookie-expires: "172800"
+    nginx.ingress.kubernetes.io/session-cookie-max-age: "172800"
+  tls:
+    enabled: false
+    secretName: aevom-tls
+    # Names the cert-manager Issuer that should mint the certificate. Requires
+    # cert-manager on the cluster; certManager.enabled below can create the
+    # Let's Encrypt issuers for you.
+    clusterIssuer: ""
+
+# ---------------------------------------------------------------------------
+# cert-manager
+# ---------------------------------------------------------------------------
+
+certManager:
+  # Off by default, and for two reasons: cert-manager may not be installed (the
+  # ClusterIssuer CRD would not exist and the release would fail to render), and
+  # a ClusterIssuer is cluster-scoped, so a namespaced release creating one
+  # affects the whole cluster.
+  enabled: false
+  # Where Let's Encrypt sends expiry warnings. Required when enabled.
+  email: ""
+  server: https://acme-v02.api.letsencrypt.org/directory
+  stagingServer: https://acme-staging-v02.api.letsencrypt.org/directory
+  # Solver ingress class, which must match ingress.className.
+  ingressClass: nginx
